@@ -20,4 +20,6 @@ You must have clang and the ability to use make. Right now the libraries used fo
 
 TODOs: 
 - Implment a simple solution for shaders linking for testing and shipping
-- 
+- cleanup the names of project in make
+- bundle the app for macos
+- clean
