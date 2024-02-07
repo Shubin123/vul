@@ -12,22 +12,7 @@ typedef struct
     // ... other vertex attributes ...
 } Vertex;
 
-uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties)
-{
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-    {
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-        {
-            return i;
-        }
-    }
-
-    fprintf(stderr, "Failed to find suitable memory type!\n");
-    exit(EXIT_FAILURE);
-}
+// helpers and printers and utilities
 
 void enumerateVulkanExtensions()
 {
@@ -44,7 +29,8 @@ void enumerateVulkanExtensions()
     free(availableExtensions);
 }
 
-void enumerateVulkanLayers() {
+void enumerateVulkanLayers()
+{
     uint32_t layerCount;
     vkEnumerateInstanceLayerProperties(&layerCount, NULL);
 
@@ -52,7 +38,8 @@ void enumerateVulkanLayers() {
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
 
     printf("Available Vulkan layers:\n");
-    for (uint32_t i = 0; i < layerCount; i++) {
+    for (uint32_t i = 0; i < layerCount; i++)
+    {
         printf("\t%s\n", availableLayers[i].layerName);
     }
 
@@ -73,7 +60,7 @@ void enumeratePhysicalDevices(VkInstance instance)
     VkPhysicalDevice *devices = malloc(deviceCount * sizeof(VkPhysicalDevice));
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
 
-    for (int i = 0; i < deviceCount; i++)
+    for (uint32_t i = 0; i < deviceCount; i++)
     {
         VkPhysicalDevice device = devices[i];
         VkPhysicalDeviceProperties deviceProperties;
@@ -95,11 +82,11 @@ bool checkValidationLayerSupport()
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
 
     bool layersAvailable = true;
-    for (int i = 0; i < sizeof(validationLayers) / sizeof(validationLayers[0]); i++)
+    for (unsigned long i = 0; i < sizeof(validationLayers) / sizeof(validationLayers[0]); i++)
     {
         bool layerFound = false;
 
-        for (int j = 0; j < layerCount; j++)
+        for (uint32_t j = 0; j < layerCount; j++)
         {
             if (strcmp(validationLayers[i], availableLayers[j].layerName) == 0)
             {
@@ -119,7 +106,24 @@ bool checkValidationLayerSupport()
     return layersAvailable;
 }
 
+uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties)
+{
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
 
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+    {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+        {
+            return i;
+        }
+    }
+
+    fprintf(stderr, "Failed to find suitable memory type!\n");
+    exit(EXIT_FAILURE);
+}
+
+// initializers
 
 VkInstance createVulkanInstance()
 {
@@ -228,7 +232,6 @@ GLFWwindow *createWindow()
     return window;
 }
 
-
 VkPhysicalDevice selectPhysicalDevice(VkInstance instance)
 {
     uint32_t deviceCount = 0;
@@ -244,7 +247,7 @@ VkPhysicalDevice selectPhysicalDevice(VkInstance instance)
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
 
     VkPhysicalDevice selectedDevice = VK_NULL_HANDLE;
-    for (int i = 0; i < deviceCount; i++)
+    for (uint32_t i = 0; i < deviceCount; i++)
     {
         VkPhysicalDevice device = devices[i];
         VkPhysicalDeviceProperties deviceProperties;
@@ -436,7 +439,7 @@ VkSurfaceFormatKHR chooseSwapSurfaceFormat(VkPhysicalDevice physicalDevice, VkSu
     return chosenFormat;
 }
 
-void createImageViews(VkDevice device, VkSwapchainKHR swapChain, VkFormat swapChainImageFormat, VkImageView **swapChainImageViews, uint32_t *swapChainImageCount)
+VkImageView *createImageViews(VkDevice device, VkSwapchainKHR swapChain, VkFormat swapChainImageFormat, uint32_t *swapChainImageCount)
 {
     // Get the number of images in the swap chain
     vkGetSwapchainImagesKHR(device, swapChain, swapChainImageCount, NULL);
@@ -445,11 +448,11 @@ void createImageViews(VkDevice device, VkSwapchainKHR swapChain, VkFormat swapCh
     vkGetSwapchainImagesKHR(device, swapChain, swapChainImageCount, swapChainImages);
 
     // Allocate an array of image views
-    *swapChainImageViews = malloc(*swapChainImageCount * sizeof(VkImageView));
+    VkImageView *swapChainImageViews = malloc(*swapChainImageCount * sizeof(VkImageView));
 
     for (uint32_t i = 0; i < *swapChainImageCount; i++)
     {
-        VkImageViewCreateInfo createInfo = {};
+        VkImageViewCreateInfo createInfo = {0};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         createInfo.image = swapChainImages[i];
         createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -464,7 +467,7 @@ void createImageViews(VkDevice device, VkSwapchainKHR swapChain, VkFormat swapCh
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(device, &createInfo, NULL, &((*swapChainImageViews)[i])) != VK_SUCCESS)
+        if (vkCreateImageView(device, &createInfo, NULL, &swapChainImageViews[i]) != VK_SUCCESS)
         {
             fprintf(stderr, "Failed to create image views\n");
             exit(EXIT_FAILURE);
@@ -472,12 +475,12 @@ void createImageViews(VkDevice device, VkSwapchainKHR swapChain, VkFormat swapCh
     }
 
     free(swapChainImages);
-    // swapChainImageViews is malloc but is freed later in main in cleanup
+    return swapChainImageViews;
 }
 
 VkRenderPass createRenderPass(VkDevice device, VkFormat swapChainImageFormat)
 {
-    VkAttachmentDescription colorAttachment = {};
+    VkAttachmentDescription colorAttachment = {0};
     colorAttachment.format = swapChainImageFormat;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -487,16 +490,16 @@ VkRenderPass createRenderPass(VkDevice device, VkFormat swapChainImageFormat)
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    VkAttachmentReference colorAttachmentRef = {};
+    VkAttachmentReference colorAttachmentRef = {0};
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkSubpassDescription subpass = {};
+    VkSubpassDescription subpass = {0};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
 
-    VkRenderPassCreateInfo renderPassInfo = {};
+    VkRenderPassCreateInfo renderPassInfo = {0};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = 1;
     renderPassInfo.pAttachments = &colorAttachment;
@@ -542,7 +545,7 @@ char *loadShaderCode(const char *filename, size_t *fileSize)
 
 VkShaderModule createShaderModule(VkDevice device, const char *code, size_t codeSize)
 {
-    VkShaderModuleCreateInfo createInfo = {};
+    VkShaderModuleCreateInfo createInfo = {0};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = codeSize;
     createInfo.pCode = (const uint32_t *)code;
@@ -560,7 +563,7 @@ VkShaderModule createShaderModule(VkDevice device, const char *code, size_t code
 VkPipelineLayout createPipelineLayout(VkDevice device)
 {
     VkPipelineLayout pipelineLayout;
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {0};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     // No descriptor set layouts or push constants for this simple example
 
@@ -579,13 +582,13 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     VkShaderModule vertexShaderModule = createShaderModule(device, vertShaderCode, vertShaderSize);
     VkShaderModule fragmentShaderModule = createShaderModule(device, fragShaderCode, fragShaderSize);
 
-    VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo = {0};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vertShaderStageInfo.module = vertexShaderModule;
     vertShaderStageInfo.pName = "main"; // Make sure this matches the entry point in your shader
 
-    VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo = {0};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fragShaderStageInfo.module = fragmentShaderModule;
@@ -602,18 +605,18 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
 
     // fixed-function stages
 
-    VkVertexInputBindingDescription bindingDescription = {};
+    VkVertexInputBindingDescription bindingDescription = {0};
     bindingDescription.binding = 0;             // The binding index (used in the vertex buffer)
     bindingDescription.stride = sizeof(Vertex); // Size of a single vertex object
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescription = {};
+    VkVertexInputAttributeDescription attributeDescription = {0};
     attributeDescription.binding = 0;                           // Matches the binding in the bindingDescription
     attributeDescription.location = 0;                          // Location in the shader (layout(location = 0))
     attributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;   // Format for vec3 (3 floats)
     attributeDescription.offset = offsetof(Vertex, inPosition); // Offset of 'inPosition' within the Vertex struct
 
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
@@ -621,14 +624,14 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     vertexInputInfo.pVertexAttributeDescriptions = &attributeDescription;
 
     // Input Assembly
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
     // Viewports and Scissors
-    VkViewport viewport = {};
-    VkRect2D scissor = {};
+    VkViewport viewport = {0};
+    VkRect2D scissor = {0};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
     viewport.width = (float)swapChainExtent.width;
@@ -640,7 +643,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     scissor.offset.y = 0;
     scissor.extent = swapChainExtent;
 
-    VkPipelineViewportStateCreateInfo viewportState = {};
+    VkPipelineViewportStateCreateInfo viewportState = {0};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
     viewportState.pViewports = &viewport;
@@ -648,7 +651,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     viewportState.pScissors = &scissor;
 
     // Rasterizer
-    VkPipelineRasterizationStateCreateInfo rasterizer = {};
+    VkPipelineRasterizationStateCreateInfo rasterizer = {0};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
@@ -659,17 +662,17 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     rasterizer.depthBiasEnable = VK_FALSE;
 
     // Multisampling
-    VkPipelineMultisampleStateCreateInfo multisampling = {};
+    VkPipelineMultisampleStateCreateInfo multisampling = {0};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
     // Color Blending
-    VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+    VkPipelineColorBlendAttachmentState colorBlendAttachment = {0};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_FALSE;
 
-    VkPipelineColorBlendStateCreateInfo colorBlending = {};
+    VkPipelineColorBlendStateCreateInfo colorBlending = {0};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
     colorBlending.logicOp = VK_LOGIC_OP_COPY;
@@ -681,7 +684,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     colorBlending.blendConstants[3] = 0.0f;
 
     // Graphics Pipeline Creation
-    VkGraphicsPipelineCreateInfo pipelineInfo = {};
+    VkGraphicsPipelineCreateInfo pipelineInfo = {0};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount = 2;
     pipelineInfo.pStages = shaderStages;
@@ -717,16 +720,16 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     return graphicsPipeline;
 }
 
-void createFramebuffers(VkDevice device, VkImageView *swapChainImageViews, uint32_t swapChainImageCount, VkExtent2D swapChainExtent, VkRenderPass renderPass, VkFramebuffer **swapChainFramebuffers)
+VkFramebuffer *createFramebuffers(VkDevice device, VkImageView *swapChainImageViews, uint32_t swapChainImageCount, VkExtent2D swapChainExtent, VkRenderPass renderPass)
 {
-    *swapChainFramebuffers = malloc(swapChainImageCount * sizeof(VkFramebuffer));
+    VkFramebuffer *swapChainFramebuffers = malloc(swapChainImageCount * sizeof(VkFramebuffer));
 
     for (size_t i = 0; i < swapChainImageCount; i++)
     {
         VkImageView attachments[] = {
             swapChainImageViews[i]};
 
-        VkFramebufferCreateInfo framebufferInfo = {};
+        VkFramebufferCreateInfo framebufferInfo = {0};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass;
         framebufferInfo.attachmentCount = 1;
@@ -735,19 +738,20 @@ void createFramebuffers(VkDevice device, VkImageView *swapChainImageViews, uint3
         framebufferInfo.height = swapChainExtent.height;
         framebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(device, &framebufferInfo, NULL, &((*swapChainFramebuffers)[i])) != VK_SUCCESS)
+        if (vkCreateFramebuffer(device, &framebufferInfo, NULL, &swapChainFramebuffers[i]) != VK_SUCCESS)
         {
             fprintf(stderr, "Failed to create framebuffer\n");
             exit(EXIT_FAILURE);
         }
     }
+    return swapChainFramebuffers;
 }
 
 VkCommandPool createCommandPool(VkDevice device, uint32_t graphicsQueueFamilyIndex)
 {
 
     VkCommandPool commandPool;
-    VkCommandPoolCreateInfo poolInfo = {};
+    VkCommandPoolCreateInfo poolInfo = {0};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
     poolInfo.flags = 0; // Optional
@@ -761,28 +765,29 @@ VkCommandPool createCommandPool(VkDevice device, uint32_t graphicsQueueFamilyInd
     return commandPool;
 }
 
-void allocateCommandBuffers(VkDevice device, VkCommandPool commandPool, uint32_t swapChainImageCount, VkCommandBuffer **commandBuffers)
+VkCommandBuffer *allocateCommandBuffers(VkDevice device, VkCommandPool commandPool, uint32_t swapChainImageCount)
 {
-    *commandBuffers = malloc(swapChainImageCount * sizeof(VkCommandBuffer));
+    VkCommandBuffer *commandBuffers = malloc(swapChainImageCount * sizeof(VkCommandBuffer));
 
-    VkCommandBufferAllocateInfo allocInfo = {};
+    VkCommandBufferAllocateInfo allocInfo = {0};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = swapChainImageCount;
 
-    if (vkAllocateCommandBuffers(device, &allocInfo, *commandBuffers) != VK_SUCCESS)
+    if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers) != VK_SUCCESS)
     {
         fprintf(stderr, "Failed to allocate command buffers\n");
         exit(EXIT_FAILURE);
     }
+    return commandBuffers;
 }
 
 void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t swapChainImageCount, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkPipeline graphicsPipeline, VkFramebuffer *swapChainFramebuffers, VkBuffer vertexBuffer)
 {
     for (size_t i = 0; i < swapChainImageCount; i++)
     {
-        VkCommandBufferBeginInfo beginInfo = {};
+        VkCommandBufferBeginInfo beginInfo = {0};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
         beginInfo.pInheritanceInfo = NULL;
@@ -793,13 +798,13 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t swapChainIma
             exit(EXIT_FAILURE);
         }
 
-        VkRenderPassBeginInfo renderPassInfo = {};
+        VkRenderPassBeginInfo renderPassInfo = {0};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = renderPass;
         renderPassInfo.framebuffer = swapChainFramebuffers[i];
         renderPassInfo.renderArea.offset = (VkOffset2D){0, 0};
         renderPassInfo.renderArea.extent = swapChainExtent;
-        VkClearValue clearColor = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
         renderPassInfo.clearValueCount = 1;
         renderPassInfo.pClearValues = &clearColor;
 
@@ -829,11 +834,12 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuff
         {{0.5f, 0.5f, 0.0f}},  // Vertex 2
         {{-0.5f, 0.5f, 0.0f}}  // Vertex 3
     };
+
     const uint32_t vertexCount = sizeof(vertices) / sizeof(vertices[0]);
     VkDeviceSize bufferSize = sizeof(Vertex) * vertexCount;
 
     // Create buffer
-    VkBufferCreateInfo bufferInfo = {};
+    VkBufferCreateInfo bufferInfo = {0};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = bufferSize;
     bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
@@ -849,7 +855,7 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuff
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(device, *vertexBuffer, &memRequirements);
 
-    VkMemoryAllocateInfo allocInfo = {};
+    VkMemoryAllocateInfo allocInfo = {0};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -875,10 +881,10 @@ void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore 
     *renderFinishedSemaphores = malloc(sizeof(VkSemaphore) * maxFramesInFlight);
     *inFlightFences = malloc(sizeof(VkFence) * maxFramesInFlight);
 
-    VkSemaphoreCreateInfo semaphoreInfo = {};
+    VkSemaphoreCreateInfo semaphoreInfo = {0};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    VkFenceCreateInfo fenceInfo = {};
+    VkFenceCreateInfo fenceInfo = {0};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // Initialize fences in the signaled state
 
@@ -901,13 +907,12 @@ int main()
     // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) =>graphics_pipeline =>  main_loop
     // tdlr: Initialization, Vulkan instance, physical device, logical device, swap chain, image views, render pass, graphics pipeline, framebuffer, command pool, command buffer, vertex buffer, sync object, mainloop
 
-    setenv("MVK_CONFIG_LOG_LEVEL", "2", 1); // 1 means overwrite existing value
+    setenv("MVK_CONFIG_LOG_LEVEL", "20", 1); // 1 means overwrite existing value
     setenv("MVK_DEBUG", "1", 1);
 
     VkQueue graphicsQueue, presentQueue;
 
     uint32_t swapChainImageCount;
-    VkImageView *swapChainImageViews;
 
     VkExtent2D swapChainExtent;
 
@@ -928,7 +933,7 @@ int main()
     VkSurfaceFormatKHR chosenFormat = chooseSwapSurfaceFormat(physicalDevice, surface);
     VkSwapchainKHR swapChain = createSwapChain(physicalDevice, device, surface, &swapChainExtent);
 
-    createImageViews(device, swapChain, chosenFormat.format, &swapChainImageViews, &swapChainImageCount);
+    VkImageView *swapChainImageViews = createImageViews(device, swapChain, chosenFormat.format, &swapChainImageCount);
 
     VkRenderPass renderPass = createRenderPass(device, chosenFormat.format);
 
@@ -942,14 +947,14 @@ int main()
 
     VkPipeline graphicsPipeline = createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, vertexShaderCode, vertexShaderSize, fragmentShaderCode, fragmentShaderSize);
 
-    VkFramebuffer *swapChainFramebuffers;
-    createFramebuffers(device, swapChainImageViews, swapChainImageCount, swapChainExtent, renderPass, &swapChainFramebuffers);
+    VkFramebuffer *swapChainFramebuffers = createFramebuffers(device, swapChainImageViews, swapChainImageCount, swapChainExtent, renderPass);
+
 
     VkCommandPool commandPool = createCommandPool(device, graphicsQueueFamilyIndex);
 
-    VkCommandBuffer *commandBuffers;
-    allocateCommandBuffers(device, commandPool, swapChainImageCount, &commandBuffers);
+    VkCommandBuffer *commandBuffers = allocateCommandBuffers(device, commandPool, swapChainImageCount);
 
+    
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
@@ -960,11 +965,11 @@ int main()
     VkSemaphore *imageAvailableSemaphores;
     VkSemaphore *renderFinishedSemaphores;
     VkFence *inFlightFences;
-
+    
     createSyncObjects(device, MAX_FRAMES_IN_FLIGHT, &imageAvailableSemaphores, &renderFinishedSemaphores, &inFlightFences);
-
+    
     size_t currentFrame = 0;
-
+    
     // Main loop
 
     while (!glfwWindowShouldClose(window))
@@ -980,7 +985,7 @@ int main()
         vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         // 2. Submit the command buffer
-        VkSubmitInfo submitInfo = {};
+        VkSubmitInfo submitInfo = {0};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
         VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
@@ -995,7 +1000,7 @@ int main()
         VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
-
+        
         if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
         {
             fprintf(stderr, "Failed to submit draw command buffer\n");
@@ -1003,7 +1008,7 @@ int main()
         }
 
         // 3. Present the image
-        VkPresentInfoKHR presentInfo = {};
+        VkPresentInfoKHR presentInfo = {0};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
         presentInfo.waitSemaphoreCount = 1;

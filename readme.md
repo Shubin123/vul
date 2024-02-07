@@ -1,5 +1,5 @@
 This project is a glfw and vulkan based game that will hopefully be crossplatform.
-Right now it is built and ships to only macos. 
+Right now it is built and ships to only macos (x86-64/AMD64). 
 Hopefully the libraries and C code written will allow for compatibility with other platforms down the line.
 
 The main game and tests are written in C. 
@@ -17,9 +17,8 @@ You must have clang and the ability to use make. Right now the libraries used fo
 3. Enjoy!
 
 
-
 # TODOs
 - Implment a simple solution for shaders linking for testing and shipping
 - cleanup the names of project in make
 - bundle the app for macos
-- clean
+- refactor data management into structs
