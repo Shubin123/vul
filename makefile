@@ -17,6 +17,8 @@ test: tests/test.c
 	$(CC) $(CFLAGS) -o test ./tests/test.c $(LDFLAGS)
 test2: tests/test2.c
 	$(CC) $(CFLAGS) -o test2 ./tests/test2.c -lglfw -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo
+test3: tests/test3.c
+	$(CC) $(CFLAGS) -o test3 ./tests/test3.c
 
 
 # Shader compilation
