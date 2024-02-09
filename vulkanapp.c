@@ -2,20 +2,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
 typedef struct
 {
     float inPosition[3]; // Or use a vec3-like struct if you have one
-    // ... other vertex attributes ...
 } Vertex;
 
 // uniform buffer object
-typedef struct{
+typedef struct
+{
     float time;
-} UBO; 
+} UBO;
 
 // helpers and printers and utilities
 
@@ -565,15 +564,17 @@ VkShaderModule createShaderModule(VkDevice device, const char *code, size_t code
     return shaderModule;
 }
 
-VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout* descriptorSetLayouts, uint32_t descriptorSetLayoutCount) {
+VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout *descriptorSetLayouts, uint32_t descriptorSetLayoutCount)
+{
     VkPipelineLayout pipelineLayout;
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {0};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    
-    pipelineLayoutInfo.setLayoutCount = descriptorSetLayoutCount; // Can be 0 if no descriptor sets are used
-    pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts; // Can be NULL if no descriptor sets are used
 
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, NULL, &pipelineLayout) != VK_SUCCESS) {
+    pipelineLayoutInfo.setLayoutCount = descriptorSetLayoutCount; // Can be 0 if no descriptor sets are used
+    pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts;        // Can be NULL if no descriptor sets are used
+
+    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, NULL, &pipelineLayout) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to create pipeline layout\n");
         exit(EXIT_FAILURE);
     }
@@ -601,32 +602,28 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-    // TODO: Set up fixed-function pipeline stages:
-    // VkPipelineVertexInputStateCreateInfo, VkPipelineInputAssemblyStateCreateInfo,
-    // VkPipelineViewportStateCreateInfo, VkPipelineRasterizationStateCreateInfo,
-    // VkPipelineMultisampleStateCreateInfo, VkPipelineColorBlendStateCreateInfo,
-    // and VkPipelineDepthStencilStateCreateInfo.
-    // If any stages are not used, they must be properly omitted or configured.
-
     // fixed-function stages
 
+    // description
     VkVertexInputBindingDescription bindingDescription = {0};
     bindingDescription.binding = 0;             // The binding index (used in the vertex buffer)
     bindingDescription.stride = sizeof(Vertex); // Size of a single vertex object
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescription = {0};
-    attributeDescription.binding = 0;                           // Matches the binding in the bindingDescription
-    attributeDescription.location = 0;                          // Location in the shader (layout(location = 0))
-    attributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;   // Format for vec3 (3 floats)
-    attributeDescription.offset = offsetof(Vertex, inPosition); // Offset of 'inPosition' within the Vertex struct
+    // attributes
+    VkVertexInputAttributeDescription attributeDescriptions[2] = {0};
+    attributeDescriptions[0].binding = 0;                           // Matches the binding in the bindingDescription
+    attributeDescriptions[0].location = 0;                          // Location in the shader (layout(location = 0))
+    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;   // Format for vec3 (3 floats)
+    attributeDescriptions[0].offset = offsetof(Vertex, inPosition); // Offset of 'inPosition' within the Vertex struct
 
+    // vertex binding
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
     vertexInputInfo.vertexAttributeDescriptionCount = 1;
-    vertexInputInfo.pVertexAttributeDescriptions = &attributeDescription;
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
     // Input Assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
@@ -725,10 +722,12 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     return graphicsPipeline;
 }
 
-void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint32_t bufferCount, VkBuffer* uniformBuffers, VkDeviceMemory* uniformBufferMemory) {
+void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint32_t bufferCount, VkBuffer *uniformBuffers, VkDeviceMemory *uniformBufferMemory)
+{
     VkDeviceSize bufferSize = sizeof(UBO); // Assuming UBO is your Uniform Buffer Object structure
 
-    for (uint32_t i = 0; i < bufferCount; ++i) {
+    for (uint32_t i = 0; i < bufferCount; ++i)
+    {
         // Create the buffer
         VkBufferCreateInfo bufferInfo = {0};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -736,7 +735,8 @@ void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint
         bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateBuffer(device, &bufferInfo, NULL, &uniformBuffers[i]) != VK_SUCCESS) {
+        if (vkCreateBuffer(device, &bufferInfo, NULL, &uniformBuffers[i]) != VK_SUCCESS)
+        {
             fprintf(stderr, "Failed to create uniform buffer\n");
             exit(EXIT_FAILURE);
         }
@@ -750,7 +750,8 @@ void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        if (vkAllocateMemory(device, &allocInfo, NULL, &uniformBufferMemory[i]) != VK_SUCCESS) {
+        if (vkAllocateMemory(device, &allocInfo, NULL, &uniformBufferMemory[i]) != VK_SUCCESS)
+        {
             fprintf(stderr, "Failed to allocate uniform buffer memory\n");
             exit(EXIT_FAILURE);
         }
@@ -759,10 +760,11 @@ void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint
     }
 }
 
-void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time) {
+void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time)
+{
     UBO ubo = {time};
 
-    void* data;
+    void *data;
     vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(device, uniformBufferMemory);
@@ -801,8 +803,8 @@ VkCommandPool createCommandPool(VkDevice device, uint32_t graphicsQueueFamilyInd
     VkCommandPool commandPool;
     VkCommandPoolCreateInfo poolInfo = {0};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
-    poolInfo.flags = 0; // Optional
 
     if (vkCreateCommandPool(device, &poolInfo, NULL, &commandPool) != VK_SUCCESS)
     {
@@ -831,12 +833,17 @@ VkCommandBuffer *allocateCommandBuffers(VkDevice device, VkCommandPool commandPo
     return commandBuffers;
 }
 
-void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout, VkPipeline graphicsPipeline) {
+void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout)
+{
+    vkResetCommandBuffer(commandBuffers[imageIndex], 0);
+
     VkCommandBufferBeginInfo beginInfo = {0};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    beginInfo.pInheritanceInfo = NULL;
 
-    if (vkBeginCommandBuffer(commandBuffers[imageIndex], &beginInfo) != VK_SUCCESS) {
+    if (vkBeginCommandBuffer(commandBuffers[imageIndex], &beginInfo) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to begin recording command buffer at index %u\n", imageIndex);
         exit(EXIT_FAILURE);
     }
@@ -848,34 +855,42 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
     renderPassInfo.renderArea.offset = (VkOffset2D){0, 0};
     renderPassInfo.renderArea.extent = swapChainExtent;
-
     VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
-
     vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    
-    vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-    // Bind descriptor set and issue draw commands
+    // Bind the pipeline and vertex buffer
+    vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    VkBuffer vertexBuffers[] = {vertexBuffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, vertexBuffers, offsets);
+
+    // Bind descriptor set
     vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, NULL);
+
+    // Issue the draw call
     vkCmdDraw(commandBuffers[imageIndex], 3, 1, 0, 0);
 
-    // End render pass
+    // End the render pass
     vkCmdEndRenderPass(commandBuffers[imageIndex]);
 
-    if (vkEndCommandBuffer(commandBuffers[imageIndex]) != VK_SUCCESS) {
+    // End the command buffer
+    if (vkEndCommandBuffer(commandBuffers[imageIndex]) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to end recording command buffer at index %u\n", imageIndex);
         exit(EXIT_FAILURE);
     }
 }
 
-VkDescriptorSet* createDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, VkBuffer* uniformBuffers, uint32_t descriptorSetCount) {
-    VkDescriptorSet* descriptorSets = malloc(descriptorSetCount * sizeof(VkDescriptorSet));
+VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, VkBuffer *uniformBuffers, uint32_t descriptorSetCount)
+{
+    VkDescriptorSet *descriptorSets = malloc(descriptorSetCount * sizeof(VkDescriptorSet));
 
     // Create an array of descriptor set layouts for allocation
-    VkDescriptorSetLayout* layouts = malloc(descriptorSetCount * sizeof(VkDescriptorSetLayout));
-    for (uint32_t i = 0; i < descriptorSetCount; ++i) {
+    VkDescriptorSetLayout *layouts = malloc(descriptorSetCount * sizeof(VkDescriptorSetLayout));
+    for (uint32_t i = 0; i < descriptorSetCount; ++i)
+    {
         layouts[i] = descriptorSetLayout;
     }
 
@@ -887,13 +902,15 @@ VkDescriptorSet* createDescriptorSets(VkDevice device, VkDescriptorPool descript
     allocInfo.pSetLayouts = layouts;
 
     // Allocate descriptor sets
-    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to allocate descriptor sets\n");
         exit(EXIT_FAILURE);
     }
 
     // Configure each descriptor set to reference the appropriate uniform buffer
-    for (uint32_t i = 0; i < descriptorSetCount; ++i) {
+    for (uint32_t i = 0; i < descriptorSetCount; ++i)
+    {
         VkDescriptorBufferInfo bufferInfo = {0};
         bufferInfo.buffer = uniformBuffers[i];
         bufferInfo.offset = 0;
@@ -915,13 +932,14 @@ VkDescriptorSet* createDescriptorSets(VkDevice device, VkDescriptorPool descript
     return descriptorSets;
 }
 
-VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
+VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device)
+{
     VkDescriptorSetLayoutBinding uboLayoutBinding = {0};
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboLayoutBinding.descriptorCount = 1;
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // or VK_SHADER_STAGE_FRAGMENT_BIT, etc., depending on your needs
-    uboLayoutBinding.pImmutableSamplers = NULL; // Optional
+    uboLayoutBinding.pImmutableSamplers = NULL;               // Optional
 
     VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -929,7 +947,8 @@ VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
     layoutInfo.pBindings = &uboLayoutBinding;
 
     VkDescriptorSetLayout descriptorSetLayout;
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to create descriptor set layout\n");
         exit(EXIT_FAILURE);
     }
@@ -937,7 +956,8 @@ VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
     return descriptorSetLayout;
 }
 
-VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSets) {
+VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSets)
+{
     VkDescriptorPoolSize poolSize = {0};
     poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSize.descriptorCount = numDescriptorSets; // Total number of uniform buffer descriptors
@@ -949,14 +969,14 @@ VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSet
     poolInfo.maxSets = numDescriptorSets; // Total number of descriptor sets
 
     VkDescriptorPool descriptorPool;
-    if (vkCreateDescriptorPool(device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to create descriptor pool\n");
         exit(EXIT_FAILURE);
     }
 
     return descriptorPool;
 }
-
 
 void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
 {
@@ -1036,9 +1056,9 @@ void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore 
 int main()
 {
 
-    // initialization/creation process:
-    // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => graphics_pipeline => ubo initialization / descriptor setting =>  main_loop
-    // tdlr: Initialization, Vulkan instance, physical device, logical device, swap chain, image views, render pass, graphics pipeline, framebuffer, command pool, command buffer, vertex buffer, sync object, mainloop
+    // initialization/creation process to the end:
+    // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => ubo initialization / descriptor setting  => graphics_pipeline =>  frame_buffers => command_buffers => command_pool => vertex_buffers => main_loop => cleanup
+    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, ubo, graphics pipeline, frame buffer, command pool, command buffer, vertex buffer, sync object, mainloop, clean up
 
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 1); // 1 means overwrite existing value
     setenv("MVK_DEBUG", "1", 1);
@@ -1077,7 +1097,6 @@ int main()
     char *vertexShaderCode = loadShaderCode("./shaders/vertex_shader.spv", &vertexShaderSize);
     char *fragmentShaderCode = loadShaderCode("./shaders/fragment_shader.spv", &fragmentShaderSize);
 
-
     // Unified buffer object setup (do not mistake the uniform buffer with the vertex buffer and the layout descriptor with the attribute and binding descriptor)
 
     VkBuffer uniformBuffers[swapChainImageCount];
@@ -1086,7 +1105,7 @@ int main()
 
     VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(device);
     VkDescriptorPool descriptorPool = createDescriptorPool(device, swapChainImageCount);
-    VkDescriptorSet* descriptorSets = createDescriptorSets(device, descriptorPool, descriptorSetLayout, uniformBuffers, swapChainImageCount);
+    VkDescriptorSet *descriptorSets = createDescriptorSets(device, descriptorPool, descriptorSetLayout, uniformBuffers, swapChainImageCount);
 
     // pipeline layout creation and and actual pipeline creation (note the descriptor for bindings and attributes not the same as layout descriptor)
 
@@ -1102,24 +1121,20 @@ int main()
 
     VkCommandBuffer *commandBuffers = allocateCommandBuffers(device, commandPool, swapChainImageCount);
 
-    
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
-    
-    createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
 
+    createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
 
     const int MAX_FRAMES_IN_FLIGHT = 2;
     VkSemaphore *imageAvailableSemaphores;
     VkSemaphore *renderFinishedSemaphores;
     VkFence *inFlightFences;
-    
-    createSyncObjects(device, MAX_FRAMES_IN_FLIGHT, &imageAvailableSemaphores, &renderFinishedSemaphores, &inFlightFences);
-    
 
+    createSyncObjects(device, MAX_FRAMES_IN_FLIGHT, &imageAvailableSemaphores, &renderFinishedSemaphores, &inFlightFences);
 
     size_t currentFrame = 0;
-    
+
     // Main loop
 
     while (!glfwWindowShouldClose(window))
@@ -1132,16 +1147,13 @@ int main()
 
         double currentTime = glfwGetTime();
 
-
         // 1. Acquire an image from the swap chain
         uint32_t imageIndex;
         vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-        updateUniformBuffer(device, uniformBufferMemory[currentFrame], currentTime); // Update the UBO
-        
-        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, descriptorSets, pipelineLayout, graphicsPipeline);
+        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime); // Update the UBO
 
-
+        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer
         VkSubmitInfo submitInfo = {0};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1158,7 +1170,7 @@ int main()
         VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
-        
+
         if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
         {
             fprintf(stderr, "Failed to submit draw command buffer\n");
@@ -1225,11 +1237,11 @@ int main()
     vkDestroyDescriptorPool(device, descriptorPool, NULL);
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, NULL);
 
-    for (uint32_t i = 0; i < swapChainImageCount; i++) {
-    vkDestroyBuffer(device, uniformBuffers[i], NULL);
-    vkFreeMemory(device, uniformBufferMemory[i], NULL);
+    for (uint32_t i = 0; i < swapChainImageCount; i++)
+    {
+        vkDestroyBuffer(device, uniformBuffers[i], NULL);
+        vkFreeMemory(device, uniformBufferMemory[i], NULL);
     }
-
 
     for (uint32_t i = 0; i < swapChainImageCount; i++)
     {

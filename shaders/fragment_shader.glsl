@@ -1,6 +1,8 @@
 #version 450
-layout(location = 0) out vec4 outColor;
+layout(location = 0) in vec3 fragPosition; // Input from vertex shader
+layout(location = 0) out vec4 outColor;   // Output color
 
 void main() {
-    outColor = vec4(0, 1.0, 0.0, 1.0);  // Red color
+    vec3 normPos = fragPosition * 0.5 + 0.5; // Normalize the position
+    outColor = vec4(normPos, 1.0);           // Output color based on position
 }
