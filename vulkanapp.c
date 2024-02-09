@@ -660,6 +660,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    // rasterizer.cullMode = VK_CULL_MODE_NONE; // to disable culling/
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -833,7 +834,7 @@ VkCommandBuffer *allocateCommandBuffers(VkDevice device, VkCommandPool commandPo
     return commandBuffers;
 }
 
-void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout)
+void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkBuffer indexBuffer, uint32_t indexCount, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout)
 {
     vkResetCommandBuffer(commandBuffers[imageIndex], 0);
 
@@ -866,11 +867,14 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, vertexBuffers, offsets);
 
+    // Bind the index buffer
+    vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16); // Assuming uint16_t indices
+
     // Bind descriptor set
     vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, NULL);
 
-    // Issue the draw call
-    vkCmdDraw(commandBuffers[imageIndex], 3, 1, 0, 0);
+    // Issue the indexed draw call
+    vkCmdDrawIndexed(commandBuffers[imageIndex], indexCount, 1, 0, 0, 0);
 
     // End the render pass
     vkCmdEndRenderPass(commandBuffers[imageIndex]);
@@ -978,53 +982,92 @@ VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSet
     return descriptorPool;
 }
 
-void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
+void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory)
 {
-
-    const Vertex vertices[] = {
-        {{0.0f, -0.5f, 0.0f}}, // Vertex 1
-        {{0.5f, 0.5f, 0.0f}},  // Vertex 2
-        {{-0.5f, 0.5f, 0.0f}}  // Vertex 3
-    };
-
-    const uint32_t vertexCount = sizeof(vertices) / sizeof(vertices[0]);
-    VkDeviceSize bufferSize = sizeof(Vertex) * vertexCount;
-
-    // Create buffer
     VkBufferCreateInfo bufferInfo = {0};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = bufferSize;
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(device, &bufferInfo, NULL, vertexBuffer) != VK_SUCCESS)
+    if (vkCreateBuffer(device, &bufferInfo, NULL, buffer) != VK_SUCCESS)
     {
-        fprintf(stderr, "Failed to create vertex buffer\n");
+        fprintf(stderr, "Failed to create buffer\n");
         exit(EXIT_FAILURE);
     }
 
-    // Allocate memory for the buffer
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(device, *vertexBuffer, &memRequirements);
+    vkGetBufferMemoryRequirements(device, *buffer, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo = {0};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, properties);
 
-    if (vkAllocateMemory(device, &allocInfo, NULL, vertexBufferMemory) != VK_SUCCESS)
+    if (vkAllocateMemory(device, &allocInfo, NULL, bufferMemory) != VK_SUCCESS)
     {
-        fprintf(stderr, "Failed to allocate vertex buffer memory\n");
+        fprintf(stderr, "Failed to allocate buffer memory\n");
         exit(EXIT_FAILURE);
     }
 
-    vkBindBufferMemory(device, *vertexBuffer, *vertexBufferMemory, 0);
+    vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
+}
 
-    // Assuming you have your vertex data ready to be copied to the buffer
-    void *data;
-    vkMapMemory(device, *vertexBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, vertices, (size_t)bufferSize); // 'vertices' is your vertex data
-    vkUnmapMemory(device, *vertexBufferMemory);
+void copyDataToDeviceMemory(VkDevice device, VkDeviceMemory deviceMemory, const void *data, VkDeviceSize size)
+{
+    void *mappedMemory;
+    vkMapMemory(device, deviceMemory, 0, size, 0, &mappedMemory);
+    memcpy(mappedMemory, data, size);
+    vkUnmapMemory(device, deviceMemory);
+}
+
+void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
+{
+    const Vertex vertices[] = {
+        // Front face
+        {{-0.5f, -0.5f, 0.5f}}, // Vertex 0
+        {{0.5f, -0.5f, 0.5f}},  // Vertex 1
+        {{0.5f, 0.5f, 0.5f}},   // Vertex 2
+        {{-0.5f, 0.5f, 0.5f}},  // Vertex 3
+
+        // Back face
+        {{-0.5f, -0.5f, -0.5f}}, // Vertex 4
+        {{0.5f, -0.5f, -0.5f}},  // Vertex 5
+        {{0.5f, 0.5f, -0.5f}},   // Vertex 6
+        {{-0.5f, 0.5f, -0.5f}},  // Vertex 7
+    };
+
+
+    const uint32_t vertexCount = sizeof(vertices) / sizeof(vertices[0]);
+    VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertexCount;
+
+    // Create vertex buffer
+    createBuffer(device, physicalDevice, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
+
+    // Copy vertex data to vertex buffer
+    copyDataToDeviceMemory(device, *vertexBufferMemory, vertices, vertexBufferSize);
+}
+
+void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint32_t *indexCount)
+{
+
+    const uint16_t indices[] = {
+        0, 1, 2, 2, 3, 0, // Front face
+        1, 5, 6, 6, 2, 1, // Right face
+        5, 4, 7, 7, 6, 5, // Back face
+        4, 0, 3, 3, 7, 4, // Left face
+        3, 2, 6, 6, 7, 3, // Top face
+        0, 1, 5, 5, 4, 0  // Bottom face
+    };
+
+    *indexCount = sizeof(indices) / sizeof(indices[0]);
+    VkDeviceSize indexBufferSize = sizeof(uint16_t) * (*indexCount);
+
+    // Create index buffer
+    createBuffer(device, physicalDevice, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
+
+    // Copy index data to index buffer
+    copyDataToDeviceMemory(device, *indexBufferMemory, indices, indexBufferSize);
 }
 
 void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore **imageAvailableSemaphores, VkSemaphore **renderFinishedSemaphores, VkFence **inFlightFences)
@@ -1057,8 +1100,8 @@ int main()
 {
 
     // initialization/creation process to the end:
-    // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => ubo initialization / descriptor setting  => graphics_pipeline =>  frame_buffers => command_buffers => command_pool => vertex_buffers => main_loop => cleanup
-    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, ubo, graphics pipeline, frame buffer, command pool, command buffer, vertex buffer, sync object, mainloop, clean up
+    // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => ubo initialization / descriptor setting  => graphics_pipeline =>  frame_buffers => command_buffers => command_pool => vertex_buffer => sync_objects => index_buffer => main_loop => cleanup
+    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, ubo, graphics pipeline, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mainloop, clean up
 
     setenv("MVK_CONFIG_LOG_LEVEL", "2", 1); // 1 means overwrite existing value
     setenv("MVK_DEBUG", "1", 1);
@@ -1121,11 +1164,15 @@ int main()
 
     VkCommandBuffer *commandBuffers = allocateCommandBuffers(device, commandPool, swapChainImageCount);
 
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
+    // vertex buffers, index buffers
+    VkBuffer vertexBuffer, indexBuffer;
+    VkDeviceMemory vertexBufferMemory, indexBufferMemory;
+    uint32_t indexCount;
 
+    createIndexBuffer(device, physicalDevice, &indexBuffer, &indexBufferMemory, &indexCount);
     createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
 
+    // semaphore, fence and sync objects
     const int MAX_FRAMES_IN_FLIGHT = 2;
     VkSemaphore *imageAvailableSemaphores;
     VkSemaphore *renderFinishedSemaphores;
@@ -1153,7 +1200,7 @@ int main()
 
         updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime); // Update the UBO
 
-        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, descriptorSets, pipelineLayout);
+        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer
         VkSubmitInfo submitInfo = {0};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1222,8 +1269,10 @@ int main()
     }
     free(swapChainFramebuffers);
 
-    // Cleanup: Vertex Buffer
+    // Cleanup: Vertex and Index Buffer and its associated memory
     vkDestroyBuffer(device, vertexBuffer, NULL);
+    vkDestroyBuffer(device, indexBuffer, NULL);
+    vkFreeMemory(device, indexBufferMemory, NULL);
     vkFreeMemory(device, vertexBufferMemory, NULL);
 
     // Cleanup: Shader Modules, Pipeline, Render Pass, Image Views, Swap Chain
