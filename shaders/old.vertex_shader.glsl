@@ -1,10 +1,8 @@
 #version 450
 
-// Uniform buffer object (UBO) for time and matrices
+// Uniform buffer object (UBO) for time
 layout(binding = 0) uniform UBO {
     float time;
-    mat4 view;
-    mat4 projection;
 } ubo;
 
 // Input vertex position
@@ -28,17 +26,12 @@ void main() {
         0.0, 0.0, 0.0, 1.0
     );
 
-    // Apply model transformation (here it's just rotation)
-    mat4 model = rotationMatrix;
-
     // Calculate the transformed position
-    vec4 worldPosition = model * vec4(inPosition, 1.0);
-    vec4 viewPosition = ubo.view * worldPosition;
-    vec4 projectedPosition = ubo.projection * viewPosition;
+    vec4 newPosition = rotationMatrix * vec4(inPosition - center, 1.0) + vec4(center, 0.0);
 
-    // Output the position for fragment shader
-    fragPosition = worldPosition.xyz;
+    // Output the transformed position
+    fragPosition = newPosition.xyz;
 
     // Output the position for vertex shader
-    gl_Position = projectedPosition;
+    gl_Position = vec4(newPosition.xyz, 1.0);
 }

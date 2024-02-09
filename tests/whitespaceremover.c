@@ -2,7 +2,7 @@
 
 int main() {
     FILE* fp;
-    fp = fopen("c.txt", "r+");
+    fp = fopen("e.txt", "r+");
 
     if (fp == NULL) {
         printf("Error opening the file.\n");

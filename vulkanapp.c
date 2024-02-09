@@ -4,16 +4,18 @@
 #include <stdbool.h>
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <cglm/cglm.h>
 
 typedef struct
 {
     float inPosition[3]; // Or use a vec3-like struct if you have one
 } Vertex;
 
-// uniform buffer object
 typedef struct
 {
     float time;
+    mat4 view;
+    mat4 projection;
 } UBO;
 
 // helpers and printers and utilities
@@ -761,9 +763,12 @@ void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint
     }
 }
 
-void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time)
+void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time, mat4 view, mat4 projection)
 {
-    UBO ubo = {time};
+    UBO ubo;
+    ubo.time = time;
+    glm_mat4_copy(view, ubo.view);             // Copy the view matrix
+    glm_mat4_copy(projection, ubo.projection); // Copy the projection matrix
 
     void *data;
     vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
@@ -1037,7 +1042,6 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuff
         {{-0.5f, 0.5f, -0.5f}},  // Vertex 7
     };
 
-
     const uint32_t vertexCount = sizeof(vertices) / sizeof(vertices[0]);
     VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertexCount;
 
@@ -1094,6 +1098,16 @@ void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore 
             exit(EXIT_FAILURE);
         }
     }
+}
+
+void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 cameraUp)
+{
+    glm_lookat(cameraPos, cameraTarget, cameraUp, viewMatrix);
+}
+void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio, float nearPlane, float farPlane)
+{
+    glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projectionMatrix);
+    projectionMatrix[1][1] *= -1; // Invert the Y-axis for Vulkan
 }
 
 int main()
@@ -1180,9 +1194,25 @@ int main()
 
     createSyncObjects(device, MAX_FRAMES_IN_FLIGHT, &imageAvailableSemaphores, &renderFinishedSemaphores, &inFlightFences);
 
-    size_t currentFrame = 0;
+    
+    // projection setup
+    // Example of camera parameters
+    vec3 cameraPos = {0.0f, 0.0f, 5.0f};    // Camera position
+    vec3 cameraTarget = {0.0f, 0.0f, 0.0f}; // Camera target
+    vec3 up = {0.0f, 1.0f, 0.0f};           // Up direction
 
+    // View matrix
+    mat4 view;
+    createViewMatrix(view, cameraPos, cameraTarget, up);
+
+    // Projection matrix
+
+    mat4 projection;
+    float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
+    createProjectionMatrix(projection, 45.0f, aspectRatio, 0.1f, 10.0f);
+    
     // Main loop
+    size_t currentFrame = 0;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -1198,7 +1228,7 @@ int main()
         uint32_t imageIndex;
         vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime); // Update the UBO
+        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, view, projection);
 
         recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer
