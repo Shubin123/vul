@@ -661,7 +661,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; //cull
     // rasterizer.cullMode = VK_CULL_MODE_NONE; // to disable culling/
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
@@ -1104,6 +1104,7 @@ void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 c
 {
     glm_lookat(cameraPos, cameraTarget, cameraUp, viewMatrix);
 }
+
 void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio, float nearPlane, float farPlane)
 {
     glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projectionMatrix);
@@ -1210,7 +1211,7 @@ int main()
     mat4 projection;
     float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
     createProjectionMatrix(projection, 45.0f, aspectRatio, 0.1f, 10.0f);
-    
+
     // Main loop
     size_t currentFrame = 0;
 

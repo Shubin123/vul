@@ -1,44 +1,31 @@
 #version 450
 
-// Uniform buffer object (UBO) for time and matrices
 layout(binding = 0) uniform UBO {
     float time;
     mat4 view;
     mat4 projection;
 } ubo;
 
-// Input vertex position
 layout(location = 0) in vec3 inPosition;
-
-// Output vertex position
 layout(location = 0) out vec3 fragPosition;
 
 void main() {
-    // Determine the center point of the cube
-    vec3 center = vec3(0.0, 0.0, 0.0); // Assuming the cube is centered at the origin
+    vec3 center = vec3(0.0, 0.0, 0.0);
+    float angle = radians(45.0) * ubo.time;
 
-    // Calculate rotation angle based on time (you can modify this based on your needs)
-    float angle = radians(45.0) * ubo.time; // Rotate at 45 degrees per second
-
-    // Apply rotation transformation around the center point
+    // Rotate around the Y-axis
     mat4 rotationMatrix = mat4(
-        cos(angle), -sin(angle), 0.0, 0.0,
-        sin(angle), cos(angle), 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
+        cos(angle), 0.0, sin(angle), 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        -sin(angle), 0.0, cos(angle), 0.0,
         0.0, 0.0, 0.0, 1.0
     );
 
-    // Apply model transformation (here it's just rotation)
     mat4 model = rotationMatrix;
-
-    // Calculate the transformed position
     vec4 worldPosition = model * vec4(inPosition, 1.0);
     vec4 viewPosition = ubo.view * worldPosition;
     vec4 projectedPosition = ubo.projection * viewPosition;
 
-    // Output the position for fragment shader
     fragPosition = worldPosition.xyz;
-
-    // Output the position for vertex shader
     gl_Position = projectedPosition;
 }
