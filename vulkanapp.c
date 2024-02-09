@@ -661,8 +661,8 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; //cull
-    // rasterizer.cullMode = VK_CULL_MODE_NONE; // to disable culling/
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; // cull (efficient but may lead to render bugs)
+    rasterizer.cullMode = VK_CULL_MODE_NONE; // to disable culling/
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
