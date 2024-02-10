@@ -258,6 +258,7 @@ GLFWwindow *createWindow()
     return window;
 }
 
+
 void handleWindowResize(UserData* userData, mat4* projection) {
     if (userData && userData->windowData.wasResized) {
         int width = userData->windowData.width;
@@ -266,9 +267,13 @@ void handleWindowResize(UserData* userData, mat4* projection) {
 
         glm_perspective(glm_rad(45.0f), aspectRatio, 0.1f, 10.0f, *projection);
 
+        // Reapply the Y-axis inversion for Vulkan
+        (*projection)[1][1] *= -1;
+
         userData->windowData.wasResized = false;
     }
 }
+
 
 // VULKAN
 VkInstance createVulkanInstance()
@@ -1223,7 +1228,7 @@ void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 c
 void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio, float nearPlane, float farPlane)
 {
     glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projectionMatrix);
-    projectionMatrix[1][1] *= -1; // Invert the Y-axis for Vulkan
+    projectionMatrix[1][1] *= -1; 
 }
 
 void applyFriction(Transform *transform, float frictionFactor)
