@@ -1,7 +1,7 @@
 CC = clang
 CFLAGS = -std=c11 -I/usr/local/include
 LDFLAGS = -L/usr/local/lib -lvulkan -lMoltenVK -lglfw -lpthread -framework Cocoa -framework IOKit -framework CoreVideo   
-APPFLAGS = -L./ships -rpath @executable_path/ships -lvulkan -lglfw -lMoltenVK -framework Cocoa -framework IOKit -framework CoreVideo -framework IOSurface -framework Metal -framework QuartzCore
+APPFLAGS = -L./ships -rpath @executable_path/ships -lpthread -lvulkan -lglfw -lMoltenVK -framework Cocoa -framework IOKit -framework CoreVideo -framework IOSurface -framework Metal -framework QuartzCore
 WARNINGS = -Wall -Wextra -Wpedantic -Werror
 
 #app is dynamically linked with libaries in ./ships

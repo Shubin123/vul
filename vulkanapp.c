@@ -14,11 +14,27 @@ typedef struct
 typedef struct
 {
     float time;
+    mat4 model;
     mat4 view;
     mat4 projection;
 } UBO;
 
-// helpers and printers and utilities
+typedef struct
+{
+    int keyWPressed;
+    int keyAPressed;
+    int keySPressed;
+    int keyDPressed;
+} KeyStates;
+
+typedef struct
+{
+    float translateX;
+    float translateY;
+    // Add more transformation fields as needed (e.g., translateZ, rotate, scale)
+} Transform;
+
+// ---helpers and printers and utilities---
 
 void enumerateVulkanExtensions()
 {
@@ -112,6 +128,14 @@ bool checkValidationLayerSupport()
     return layersAvailable;
 }
 
+void copyDataToDeviceMemory(VkDevice device, VkDeviceMemory deviceMemory, const void *data, VkDeviceSize size)
+{
+    void *mappedMemory;
+    vkMapMemory(device, deviceMemory, 0, size, 0, &mappedMemory);
+    memcpy(mappedMemory, data, size);
+    vkUnmapMemory(device, deviceMemory);
+}
+
 uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memProperties;
@@ -129,8 +153,52 @@ uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, Vk
     exit(EXIT_FAILURE);
 }
 
-// initializers and updaters
+// ---initializers and updaters---
 
+// GLFW
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    (void)scancode; // Avoid unused parameter warning
+    (void)mods;
+
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+
+    KeyStates *keyStates = (KeyStates *)glfwGetWindowUserPointer(window);
+
+    if (key == GLFW_KEY_W)
+        keyStates->keyWPressed = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_A)
+        keyStates->keyAPressed = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_S)
+        keyStates->keySPressed = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_D)
+        keyStates->keyDPressed = (action != GLFW_RELEASE);
+}
+
+GLFWwindow *createWindow()
+{
+    if (!glfwInit())
+    {
+        fprintf(stderr, "Failed to initialize GLFW\n");
+        exit(EXIT_FAILURE);
+    }
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    GLFWwindow *window = glfwCreateWindow(800, 600, "Vulkan Bimbo", NULL, NULL);
+    if (!window)
+    {
+        fprintf(stderr, "Failed to create GLFW window\n");
+        glfwTerminate();
+        exit(EXIT_FAILURE);
+    }
+
+    return window;
+}
+
+// VULKAN
 VkInstance createVulkanInstance()
 {
     VkInstance instance;
@@ -216,26 +284,6 @@ VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow *window)
         exit(EXIT_FAILURE);
     }
     return surface;
-}
-
-GLFWwindow *createWindow()
-{
-    if (!glfwInit())
-    {
-        fprintf(stderr, "Failed to initialize GLFW\n");
-        exit(EXIT_FAILURE);
-    }
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow *window = glfwCreateWindow(800, 600, "Vulkan Bimbo", NULL, NULL);
-    if (!window)
-    {
-        fprintf(stderr, "Failed to create GLFW window\n");
-        glfwTerminate();
-        exit(EXIT_FAILURE);
-    }
-
-    return window;
 }
 
 VkPhysicalDevice selectPhysicalDevice(VkInstance instance)
@@ -662,7 +710,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; // cull (efficient but may lead to render bugs)
-    rasterizer.cullMode = VK_CULL_MODE_NONE; // to disable culling/
+    rasterizer.cullMode = VK_CULL_MODE_NONE;     // to disable culling/
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -763,10 +811,11 @@ void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint
     }
 }
 
-void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time, mat4 view, mat4 projection)
+void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time, mat4 model, mat4 view, mat4 projection)
 {
     UBO ubo;
     ubo.time = time;
+    glm_mat4_copy(model, ubo.model);           // Copy the model matrix
     glm_mat4_copy(view, ubo.view);             // Copy the view matrix
     glm_mat4_copy(projection, ubo.projection); // Copy the projection matrix
 
@@ -987,6 +1036,7 @@ VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSet
     return descriptorPool;
 }
 
+// createVertexBuffer and createIndexBuffer buffer functions depend on createBuffer
 void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory)
 {
     VkBufferCreateInfo bufferInfo = {0};
@@ -1016,14 +1066,6 @@ void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize
     }
 
     vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
-}
-
-void copyDataToDeviceMemory(VkDevice device, VkDeviceMemory deviceMemory, const void *data, VkDeviceSize size)
-{
-    void *mappedMemory;
-    vkMapMemory(device, deviceMemory, 0, size, 0, &mappedMemory);
-    memcpy(mappedMemory, data, size);
-    vkUnmapMemory(device, deviceMemory);
 }
 
 void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
@@ -1100,6 +1142,7 @@ void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore 
     }
 }
 
+// CGLM
 void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 cameraUp)
 {
     glm_lookat(cameraPos, cameraTarget, cameraUp, viewMatrix);
@@ -1158,7 +1201,7 @@ int main()
     // Unified buffer object setup (do not mistake the uniform buffer with the vertex buffer and the layout descriptor with the attribute and binding descriptor)
 
     VkBuffer uniformBuffers[swapChainImageCount];
-    VkDeviceMemory uniformBufferMemory[swapChainImageCount];
+    VkDeviceMemory uniformBufferMemory[swapChainImageCount]; // created as an array but used in update as an item of said array
     createUniformBuffers(device, physicalDevice, swapChainImageCount, uniformBuffers, uniformBufferMemory);
 
     VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(device);
@@ -1195,22 +1238,35 @@ int main()
 
     createSyncObjects(device, MAX_FRAMES_IN_FLIGHT, &imageAvailableSemaphores, &renderFinishedSemaphores, &inFlightFences);
 
-    
     // projection setup
     // Example of camera parameters
     vec3 cameraPos = {0.0f, 0.0f, 5.0f};    // Camera position
     vec3 cameraTarget = {0.0f, 0.0f, 0.0f}; // Camera target
     vec3 up = {0.0f, 1.0f, 0.0f};           // Up direction
 
+    // Model matrix
+    mat4 model;
+    glm_mat4_identity(model);
+
     // View matrix
     mat4 view;
     createViewMatrix(view, cameraPos, cameraTarget, up);
 
     // Projection matrix
-
     mat4 projection;
     float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
     createProjectionMatrix(projection, 45.0f, aspectRatio, 0.1f, 10.0f);
+
+    // Set the key callback
+    KeyStates keyStates = {0, 0, 0, 0};
+    glfwSetWindowUserPointer(window, &keyStates);
+
+    glfwSetKeyCallback(window, key_callback);
+
+    // Initialize the Transform struct
+    Transform transform = {
+        .translateX = 0.0f,
+        .translateY = 0.0f};
 
     // Main loop
     size_t currentFrame = 0;
@@ -1225,11 +1281,36 @@ int main()
 
         double currentTime = glfwGetTime();
 
+        if (keyStates.keyWPressed)
+        {
+            transform.translateY += 0.01f;
+            printf("w\n");
+        }
+
+        if (keyStates.keySPressed)
+        {
+            transform.translateY -= 0.01f;
+            printf("s\n");
+        }
+        if (keyStates.keyAPressed)
+        {
+            transform.translateX -= 0.01f;
+            printf("a\n");
+        }
+        if (keyStates.keyDPressed)
+        {
+            transform.translateX += 0.01f;
+            printf("d\n");
+        }
+
+        vec3 translation = {transform.translateX, transform.translateY, 0.0f}; // Only translate in X and Y
+        glm_translate(model, translation);
+
         // 1. Acquire an image from the swap chain
         uint32_t imageIndex;
         vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, view, projection);
+        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, model, view, projection);
 
         recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer
@@ -1330,10 +1411,11 @@ int main()
     free(swapChainImageViews);
     vkDestroySwapchainKHR(device, swapChain, NULL);
 
-    // Cleanup: Logical Device, Surface, Vulkan Instance, GLFW Window
+    // Cleanup: Logical Device, Surface, Vulkan Instance
     vkDestroyDevice(device, NULL);
     vkDestroySurfaceKHR(instance, surface, NULL);
     vkDestroyInstance(instance, NULL);
+    // cleanup: glfw
     glfwDestroyWindow(window);
     glfwTerminate();
 
