@@ -29,6 +29,20 @@ typedef struct
 
 typedef struct
 {
+    GLFWwindow *handle;
+    int width;
+    int height;
+    bool wasResized;
+} WindowData;
+
+typedef struct
+{
+    WindowData windowData;
+    KeyStates keyStates;
+} UserData;
+
+typedef struct
+{
     float translateX;
     float translateY;
     // Add more transformation fields as needed (e.g., translateZ, rotate, scale)
@@ -153,20 +167,53 @@ uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, Vk
     exit(EXIT_FAILURE);
 }
 
+UserData *createUserData()
+{
+    UserData *userData = malloc(sizeof(UserData));
+    if (!userData)
+    {
+        fprintf(stderr, "Failed to allocate memory for user data\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize WindowData
+    userData->windowData.width = 800;
+    userData->windowData.height = 600;
+    userData->windowData.wasResized = false;
+
+    // Initialize KeyStates
+    userData->keyStates.keyWPressed = false;
+    userData->keyStates.keyAPressed = false;
+    userData->keyStates.keySPressed = false;
+    userData->keyStates.keyDPressed = false;
+
+    // Initialize other fields of userData as necessary...
+
+    return userData;
+}
+
 // ---initializers and updaters---
 
 // GLFW
-void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
+void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
     (void)scancode; // Avoid unused parameter warning
     (void)mods;
+
+    // Retrieve the combined user data
+    UserData *userData = (UserData *)glfwGetWindowUserPointer(window);
+    if (!userData)
+    {
+        return; // Safety check
+    }
+
+    // Access the KeyStates part of userData
+    KeyStates *keyStates = &userData->keyStates;
 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
-
-    KeyStates *keyStates = (KeyStates *)glfwGetWindowUserPointer(window);
 
     if (key == GLFW_KEY_W)
         keyStates->keyWPressed = (action != GLFW_RELEASE);
@@ -176,6 +223,17 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         keyStates->keySPressed = (action != GLFW_RELEASE);
     if (key == GLFW_KEY_D)
         keyStates->keyDPressed = (action != GLFW_RELEASE);
+}
+
+void framebufferResizeCallback(GLFWwindow *window, int width, int height)
+{
+    UserData *userData = (UserData *)glfwGetWindowUserPointer(window);
+    if (userData)
+    {
+        userData->windowData.width = width;
+        userData->windowData.height = height;
+        userData->windowData.wasResized = true;
+    }
 }
 
 GLFWwindow *createWindow()
@@ -195,7 +253,21 @@ GLFWwindow *createWindow()
         exit(EXIT_FAILURE);
     }
 
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
     return window;
+}
+
+void handleWindowResize(UserData* userData, mat4* projection) {
+    if (userData && userData->windowData.wasResized) {
+        int width = userData->windowData.width;
+        int height = userData->windowData.height;
+        float aspectRatio = (float)width / (float)height;
+
+        glm_perspective(glm_rad(45.0f), aspectRatio, 0.1f, 10.0f, *projection);
+
+        userData->windowData.wasResized = false;
+    }
 }
 
 // VULKAN
@@ -1154,16 +1226,20 @@ void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio,
     projectionMatrix[1][1] *= -1; // Invert the Y-axis for Vulkan
 }
 
-void applyFriction(Transform *transform, float frictionFactor) {
-    if (!transform) return;
+void applyFriction(Transform *transform, float frictionFactor)
+{
+    if (!transform)
+        return;
 
     // Apply friction to velocities
     transform->translateX *= frictionFactor;
     transform->translateY *= frictionFactor;
 
     // Optional: Set a threshold below which velocities are zeroed
-    if (fabs(transform->translateX) < 0.001f) transform->translateX = 0.0f;
-    if (fabs(transform->translateY) < 0.001f) transform->translateY = 0.0f;
+    if (fabs(transform->translateX) < 0.001f)
+        transform->translateX = 0.0f;
+    if (fabs(transform->translateY) < 0.001f)
+        transform->translateY = 0.0f;
 }
 
 int main()
@@ -1182,8 +1258,14 @@ int main()
 
     VkExtent2D swapChainExtent;
 
-    // enumerateVulkanExtensions();
+    // enumerateVulkanExtensions(); // to figure out all extensions available on the system
+
+    // Initialize GLFW Window, WindowData struct with the created window handle
+
+    UserData *userData = createUserData();
+
     GLFWwindow *window = createWindow();
+
     VkInstance instance = createVulkanInstance();
 
     VkSurfaceKHR surface = createSurface(instance, window);
@@ -1223,15 +1305,12 @@ int main()
     // pipeline layout creation and and actual pipeline creation (note the descriptor for bindings and attributes not the same as layout descriptor)
 
     VkPipelineLayout pipelineLayout = createPipelineLayout(device, &descriptorSetLayout, 1);
-
     VkPipeline graphicsPipeline = createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, vertexShaderCode, vertexShaderSize, fragmentShaderCode, fragmentShaderSize);
 
     // Framebuffers, Command Pool, Command Buffers, Vertex Buffer, Synchronization Objects
 
     VkFramebuffer *swapChainFramebuffers = createFramebuffers(device, swapChainImageViews, swapChainImageCount, swapChainExtent, renderPass);
-
     VkCommandPool commandPool = createCommandPool(device, graphicsQueueFamilyIndex);
-
     VkCommandBuffer *commandBuffers = allocateCommandBuffers(device, commandPool, swapChainImageCount);
 
     // vertex buffers, index buffers
@@ -1269,11 +1348,9 @@ int main()
     float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
     createProjectionMatrix(projection, 45.0f, aspectRatio, 0.1f, 10.0f);
 
-    // Set the key callback
-    KeyStates keyStates = {0, 0, 0, 0};
-    glfwSetWindowUserPointer(window, &keyStates);
-
-    glfwSetKeyCallback(window, key_callback);
+    // Set the glfw callbacks
+    glfwSetKeyCallback(window, keyCallback);
+    glfwSetWindowUserPointer(window, userData);
 
     // Initialize the Transform struct
     Transform transform = {
@@ -1288,41 +1365,25 @@ int main()
 
         glfwPollEvents(); // poll early for early inputs (like key presses) before render process. this may make the user experience better
 
-
+        printf("Resized to %d, %d\n", userData->windowData.width, userData->windowData.height);
 
         double currentTime = glfwGetTime();
 
-        if (keyStates.keyWPressed)
-        {
+        if (userData->keyStates.keyWPressed)
             transform.translateY += 0.01f;
-            printf("w\n");
-        }
-
-        if (keyStates.keySPressed)
-        {
+        if (userData->keyStates.keySPressed)
             transform.translateY -= 0.01f;
-            printf("s\n");
-        }
-        if (keyStates.keyAPressed)
-        {
+        if (userData->keyStates.keyAPressed)
             transform.translateX -= 0.01f;
-            printf("a\n");
-        }
-        if (keyStates.keyDPressed)
-        {
+        if (userData->keyStates.keyDPressed)
             transform.translateX += 0.01f;
-            printf("d\n");
-        }
-        
+
         applyFriction(&transform, 0.95f);
 
-        printf("dx: %f, dy: %f\n", transform.translateX, transform.translateY);
+        // printf("dx: %f, dy: %f\n", transform.translateX, transform.translateY);
 
         vec3 translation = {transform.translateX, transform.translateY, 0.0f}; // Only translate in X and Y
         glm_translate(model, translation);
-
-
-
 
         // 0. Wait for the previous frame to finish
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
@@ -1331,6 +1392,8 @@ int main()
         // 1. Acquire an image from the swap chain
         uint32_t imageIndex;
         vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+        handleWindowResize(userData, &projection);
 
         updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, model, view, projection);
 
@@ -1437,7 +1500,9 @@ int main()
     vkDestroyDevice(device, NULL);
     vkDestroySurfaceKHR(instance, surface, NULL);
     vkDestroyInstance(instance, NULL);
+
     // cleanup: glfw
+    free(userData);
     glfwDestroyWindow(window);
     glfwTerminate();
 
