@@ -1370,7 +1370,7 @@ int main()
 
         glfwPollEvents(); // poll early for early inputs (like key presses) before render process. this may make the user experience better
 
-        printf("Resized to %d, %d\n", userData->windowData.width, userData->windowData.height);
+        // printf("Resized to %d, %d\n", userData->windowData.width, userData->windowData.height);
 
         double currentTime = glfwGetTime();
 
