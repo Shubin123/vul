@@ -1154,6 +1154,18 @@ void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio,
     projectionMatrix[1][1] *= -1; // Invert the Y-axis for Vulkan
 }
 
+void applyFriction(Transform *transform, float frictionFactor) {
+    if (!transform) return;
+
+    // Apply friction to velocities
+    transform->translateX *= frictionFactor;
+    transform->translateY *= frictionFactor;
+
+    // Optional: Set a threshold below which velocities are zeroed
+    if (fabs(transform->translateX) < 0.001f) transform->translateX = 0.0f;
+    if (fabs(transform->translateY) < 0.001f) transform->translateY = 0.0f;
+}
+
 int main()
 {
 
@@ -1273,11 +1285,10 @@ int main()
 
     while (!glfwWindowShouldClose(window))
     {
-        glfwPollEvents();
 
-        // Wait for the previous frame to finish
-        vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-        vkResetFences(device, 1, &inFlightFences[currentFrame]);
+        glfwPollEvents(); // poll early for early inputs (like key presses) before render process. this may make the user experience better
+
+
 
         double currentTime = glfwGetTime();
 
@@ -1302,9 +1313,20 @@ int main()
             transform.translateX += 0.01f;
             printf("d\n");
         }
+        
+        applyFriction(&transform, 0.95f);
+
+        printf("dx: %f, dy: %f\n", transform.translateX, transform.translateY);
 
         vec3 translation = {transform.translateX, transform.translateY, 0.0f}; // Only translate in X and Y
         glm_translate(model, translation);
+
+
+
+
+        // 0. Wait for the previous frame to finish
+        vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
         // 1. Acquire an image from the swap chain
         uint32_t imageIndex;
