@@ -258,9 +258,10 @@ GLFWwindow *createWindow()
     return window;
 }
 
-
-void handleWindowResize(UserData* userData, mat4* projection) {
-    if (userData && userData->windowData.wasResized) {
+void handleWindowResize(UserData *userData, mat4 *projection)
+{
+    if (userData && userData->windowData.wasResized)
+    {
         int width = userData->windowData.width;
         int height = userData->windowData.height;
         float aspectRatio = (float)width / (float)height;
@@ -273,7 +274,6 @@ void handleWindowResize(UserData* userData, mat4* projection) {
         userData->windowData.wasResized = false;
     }
 }
-
 
 // VULKAN
 VkInstance createVulkanInstance()
@@ -833,7 +833,6 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
 
-    // TODO: If you are using a pipeline layout, set it here.
     pipelineInfo.layout = pipelineLayout;
 
     VkPipeline graphicsPipeline;
@@ -1228,7 +1227,7 @@ void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 c
 void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio, float nearPlane, float farPlane)
 {
     glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projectionMatrix);
-    projectionMatrix[1][1] *= -1; 
+    projectionMatrix[1][1] *= -1; // Flip the Y axis this needs to be done again when screen is resized
 }
 
 void applyFriction(Transform *transform, float frictionFactor)
@@ -1267,7 +1266,7 @@ int main()
 
     // Initialize GLFW Window, WindowData struct with the created window handle
 
-    UserData *userData = createUserData();
+    UserData *userData = createUserData(); // used for key press handling and window resizing
 
     GLFWwindow *window = createWindow();
 
@@ -1400,7 +1399,7 @@ int main()
 
         handleWindowResize(userData, &projection);
 
-        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, model, view, projection);
+        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, model, view, projection); // will need to modify this 
 
         recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer

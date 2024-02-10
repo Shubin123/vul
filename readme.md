@@ -18,7 +18,9 @@ You must have clang and the ability to use make. Right now the libraries used fo
 
 
 # TODOs
-- Implment a simple solution for shaders linking for testing and shipping
-- cleanup the names of project in make
+- spawn multiple objects
+- add token seperator and comment remover for the whitespaceremover
 - bundle the app for macos
-- refactor data management into structs
+- manage more data with structs
+- use said structs in functions for multiple returns (ex createIndexBuffer no longer needs to be void)
+- refactor into multiple files
