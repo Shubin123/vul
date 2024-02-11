@@ -18,7 +18,7 @@ test: tests/test.c
 test2: tests/test2.c
 	$(CC) $(CFLAGS) -o test2 ./tests/test2.c -lglfw -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo
 test3: tests/test3.c
-	$(CC) $(CFLAGS) -o test3 ./tests/test3.c
+	$(CC) -o test3 ./tests/test3.c
 
 
 # Shader compilation
@@ -33,4 +33,4 @@ shaders/fragment_shader.spv: shaders/fragment_shader.glsl
 .PHONY: shaders
 
 clean:
-	rm -f vulkanapp vulkantest test test2
+	rm -f vulkanapp vulkantest test test2 test3
