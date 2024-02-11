@@ -18,6 +18,7 @@ You must have clang and the ability to use make. Right now the libraries used fo
 
 # TODOs
 - spawn multiple objects
+- fix naming convention with models, modelMatrcies(Memory/Buffer) vs modelsBuffer (choose "s" or no "s" stick with it)
 - bundle the app for macos
 - manage more data with structs
 - use said structs in functions for multiple returns (ex createIndexBuffer no longer needs to be void)
