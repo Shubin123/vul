@@ -1021,9 +1021,6 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     }
 
 
-    // Issue the indexed draw call
-    vkCmdDrawIndexed(commandBuffers[imageIndex], indexCount, 1, 0, 0, 0);
-
     // End the render pass
     vkCmdEndRenderPass(commandBuffers[imageIndex]);
 
