@@ -1399,7 +1399,7 @@ int main()
 
         handleWindowResize(userData, &projection);
 
-        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, model, view, projection); // will need to modify this 
+        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, model, view, projection); // will need to modify this
 
         recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer
