@@ -13,14 +13,14 @@ The main game and tests are written in C.
 You must have clang and the ability to use make. Right now the libraries used for this project is dynamically linked.
 
 1. xcode-select --install
-2. make test
-3. Enjoy!
-
+2. install vulkan sdk, brew install glfw, brew install cglm
+3. make test
 
 # TODOs
 - spawn multiple objects
-- add token seperator and comment remover for the whitespaceremover
 - bundle the app for macos
 - manage more data with structs
 - use said structs in functions for multiple returns (ex createIndexBuffer no longer needs to be void)
 - refactor into multiple files
+- verify shipping/building instructions on seperate machine/vm
+
