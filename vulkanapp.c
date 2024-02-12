@@ -786,7 +786,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; // cull (efficient but may lead to render bugs)
-    rasterizer.cullMode = VK_CULL_MODE_NONE;     // to disable culling/
+    // rasterizer.cullMode = VK_CULL_MODE_NONE; // to disable culling/
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -899,11 +899,11 @@ void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, do
     vkUnmapMemory(device, uniformBufferMemory);
 }
 
-void updateModelMatricesBuffer(VkDevice device, VkDeviceMemory memory, mat4 *modelMatrices, int numObjects)
+void updateModelsBuffer(VkDevice device, VkDeviceMemory memory, mat4 *models, int numObjects)
 {
     void *data;
     vkMapMemory(device, memory, 0, numObjects * sizeof(mat4), 0, &data);
-    memcpy(data, modelMatrices, numObjects * sizeof(mat4));
+    memcpy(data, models, numObjects * sizeof(mat4));
     vkUnmapMemory(device, memory);
 }
 
@@ -1001,25 +1001,24 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
     VkBuffer vertexBuffers[] = {vertexBuffer};
     VkDeviceSize offsets[] = {0};
-    
+
     // bind vertex buffer
     vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, vertexBuffers, offsets);
 
     // bind index buffer
     vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-    
-   for (int i = 0; i < numObjects; ++i) {
+    for (int i = 0; i < numObjects; ++i)
+    {
         // Calculate dynamic offset for the current object's model matrices
         uint32_t dynamicOffset = (uint32_t)(i * modelsBufferSize);
-        
+
         // Bind descriptor set with dynamic offset
         vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 1, &dynamicOffset);
-        
+
         // Draw the object
         vkCmdDrawIndexed(commandBuffers[imageIndex], indexCount, 1, 0, 0, 0);
     }
-
 
     // End the render pass
     vkCmdEndRenderPass(commandBuffers[imageIndex]);
@@ -1032,12 +1031,14 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     }
 }
 
-VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, VkBuffer *uniformBuffers, VkBuffer modelMatricesBuffer, uint32_t descriptorSetCount, VkDeviceSize modelsBufferSize) {
+VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, VkBuffer *uniformBuffers, VkBuffer modelsBuffer, uint32_t descriptorSetCount, VkDeviceSize modelsBufferSize)
+{
     VkDescriptorSet *descriptorSets = malloc(descriptorSetCount * sizeof(VkDescriptorSet));
 
     // Create an array of descriptor set layouts for allocation
     VkDescriptorSetLayout *layouts = malloc(descriptorSetCount * sizeof(VkDescriptorSetLayout));
-    for (uint32_t i = 0; i < descriptorSetCount; ++i) {
+    for (uint32_t i = 0; i < descriptorSetCount; ++i)
+    {
         layouts[i] = descriptorSetLayout;
     }
 
@@ -1049,20 +1050,22 @@ VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descript
     allocInfo.pSetLayouts = layouts;
 
     // Allocate descriptor sets
-    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to allocate descriptor sets\n");
         exit(EXIT_FAILURE);
     }
 
     // Configure each descriptor set
-    for (uint32_t i = 0; i < descriptorSetCount; ++i) {
+    for (uint32_t i = 0; i < descriptorSetCount; ++i)
+    {
         VkDescriptorBufferInfo uboBufferInfo = {0};
         uboBufferInfo.buffer = uniformBuffers[i];
         uboBufferInfo.offset = 0;
         uboBufferInfo.range = sizeof(UBO);
 
         VkDescriptorBufferInfo modelsBufferInfo = {0};
-        modelsBufferInfo.buffer = modelMatricesBuffer;
+        modelsBufferInfo.buffer = modelsBuffer;
         modelsBufferInfo.offset = 0;
         modelsBufferInfo.range = modelsBufferSize;
 
@@ -1093,7 +1096,8 @@ VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descript
     return descriptorSets;
 }
 
-VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
+VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device)
+{
     VkDescriptorSetLayoutBinding uboLayoutBinding = {0};
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1101,21 +1105,22 @@ VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     uboLayoutBinding.pImmutableSamplers = NULL;
 
-    VkDescriptorSetLayoutBinding modelMatricesLayoutBinding = {0};
-    modelMatricesLayoutBinding.binding = 1;
-    modelMatricesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    modelMatricesLayoutBinding.descriptorCount = 1;
-    modelMatricesLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    modelMatricesLayoutBinding.pImmutableSamplers = NULL;
+    VkDescriptorSetLayoutBinding modelsLayoutBinding = {0};
+    modelsLayoutBinding.binding = 1;
+    modelsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    modelsLayoutBinding.descriptorCount = 1;
+    modelsLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    modelsLayoutBinding.pImmutableSamplers = NULL;
 
-    VkDescriptorSetLayoutBinding bindings[] = {uboLayoutBinding, modelMatricesLayoutBinding};
+    VkDescriptorSetLayoutBinding bindings[] = {uboLayoutBinding, modelsLayoutBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = 2;
     layoutInfo.pBindings = bindings;
 
     VkDescriptorSetLayout descriptorSetLayout;
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to create descriptor set layout\n");
         exit(EXIT_FAILURE);
     }
@@ -1123,7 +1128,8 @@ VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
     return descriptorSetLayout;
 }
 
-VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSets) {
+VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSets)
+{
     VkDescriptorPoolSize poolSizes[2] = {0};
 
     // For UBO
@@ -1141,7 +1147,8 @@ VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSet
     poolInfo.maxSets = numDescriptorSets;
 
     VkDescriptorPool descriptorPool;
-    if (vkCreateDescriptorPool(device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to create descriptor pool\n");
         exit(EXIT_FAILURE);
     }
@@ -1149,18 +1156,19 @@ VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSet
     return descriptorPool;
 }
 
-VkDeviceSize calculateModelMatricesBufferSize(VkPhysicalDevice physicalDevice) {
+VkDeviceSize calculateModelsBufferSize(VkPhysicalDevice physicalDevice)
+{
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
 
     VkDeviceSize minUboAlignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
     VkDeviceSize modelMatrixSize = sizeof(mat4);
-    VkDeviceSize modelMatricesBufferSize = (modelMatrixSize / minUboAlignment) * minUboAlignment + ((modelMatrixSize % minUboAlignment) > 0 ? minUboAlignment : 0);
+    VkDeviceSize alignedModelMatrixSize = (modelMatrixSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
 
-    return modelMatricesBufferSize;
+    return alignedModelMatrixSize;
 }
 
-// createVertexBuffer and createIndexBuffer and createModelMatricesbuffer are functions that depend on createBuffer
+// createVertexBuffer and createIndexBuffer and createModelsBuffer are functions that depend on createBuffer
 void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory)
 {
     VkBufferCreateInfo bufferInfo = {0};
@@ -1240,29 +1248,28 @@ void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffe
     copyDataToDeviceMemory(device, *indexBufferMemory, indices, indexBufferSize);
 }
 
-// createModelMatricesBuffer creates inital offsets well create a model co-ordinate storing system later
-void createModelMatricesBuffer(VkDevice device, VkPhysicalDevice physicalDevice, int numObjects, VkBuffer *modelMatricesBuffer, VkDeviceMemory *modelMatricesMemory) {
-    VkDeviceSize alignedModelMatrixSize = calculateModelMatricesBufferSize(physicalDevice);
+// createModelsBuffer creates inital offsets well create a model co-ordinate storing system later
+void createModelsBuffer(VkDevice device, VkPhysicalDevice physicalDevice, int numObjects, VkBuffer *modelsBuffer, VkDeviceMemory *modelsMemory)
+{
+    VkDeviceSize alignedModelMatrixSize = calculateModelsBufferSize(physicalDevice);
     VkDeviceSize bufferSize = alignedModelMatrixSize * numObjects;
 
     // Create the buffer with the correctly calculated size
-    createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, modelMatricesBuffer, modelMatricesMemory);
+    createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, modelsBuffer, modelsMemory);
 
     // Map the buffer and initialize it with offset identity matrices
     void *data;
-    vkMapMemory(device, *modelMatricesMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(device, *modelsMemory, 0, bufferSize, 0, &data);
 
     mat4 *matrices = (mat4 *)data;
-    for (int i = 0; i < numObjects; ++i) {
+    for (int i = 0; i < numObjects; ++i)
+    {
         glm_mat4_identity(matrices[i]);
-        // Apply an offset to each matrix
         glm_translate(matrices[i], (vec3){(float)i, 0.0f, 0.0f}); // Horizontal offset for example
     }
 
-    vkUnmapMemory(device, *modelMatricesMemory);
+    vkUnmapMemory(device, *modelsMemory);
 }
-
-
 
 void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore **imageAvailableSemaphores, VkSemaphore **renderFinishedSemaphores, VkFence **inFlightFences)
 {
@@ -1296,21 +1303,21 @@ void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 c
     glm_lookat(cameraPos, cameraTarget, cameraUp, viewMatrix);
 }
 
-void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio, float nearPlane, float farPlane)
+void createProjectionMatrix(mat4 projection, float fov, float aspectRatio, float nearPlane, float farPlane)
 {
-    glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projectionMatrix);
-    projectionMatrix[1][1] *= -1; // Flip the Y axis this needs to be done again when screen is resized
+    glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projection);
+    projection[1][1] *= -1; // Flip the Y axis this needs to be done again when screen is resized
 }
 
 // models are being transformed uniformly rightnow
-void translateAllModels(mat4 *modelMatrices, int numModels, vec3 translation)
+void translateAllModels(mat4 *models, int numModels, vec3 translation)
 {
     for (int i = 0; i < numModels; ++i)
     {
         mat4 translationMatrix;
         glm_mat4_identity(translationMatrix);
         glm_translate(translationMatrix, translation);
-        glm_mat4_mul(translationMatrix, modelMatrices[i], modelMatrices[i]);
+        glm_mat4_mul(translationMatrix, models[i], models[i]);
     }
 }
 
@@ -1335,10 +1342,10 @@ int main()
 
     // initialization/creation process to the end:
     // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) =>  frame_buffers => command_buffers => command_pool => vertex_buffer => sync_objects => index_buffer => model view projection matricies =>  ubo initialization => descriptor setting  => graphics_pipeline => callbacks => main_loop => cleanup
-    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mvp, ubo , bind callbacks, graphics pipeline, mainloop, clean up 
+    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mvp, ubo , bind callbacks, graphics pipeline, mainloop, clean up
 
     setenv("MVK_CONFIG_LOG_LEVEL", "20", 1); // 1 means overwrite existing value
-    setenv("MVK_DEBUG", "1", 1);
+    setenv("MVK_DEBUG", "69", 1);
 
     VkQueue graphicsQueue, presentQueue;
 
@@ -1395,14 +1402,14 @@ int main()
     createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
 
     // semaphore, fence and sync objects
-    const int MAX_FRAMES_IN_FLIGHT = 2;
+    const int MAX_FRAMES_IN_FLIGHT = 1; // used for sync
     VkSemaphore *imageAvailableSemaphores;
     VkSemaphore *renderFinishedSemaphores;
     VkFence *inFlightFences;
 
     createSyncObjects(device, MAX_FRAMES_IN_FLIGHT, &imageAvailableSemaphores, &renderFinishedSemaphores, &inFlightFences);
 
-    int numObjects = 1; // number of objects to render
+    int numObjects = 5; // number of objects to render
 
     // projection setup
     // Example of camera parameters
@@ -1412,10 +1419,10 @@ int main()
 
     // Model matrices
     mat4 *models = malloc(numObjects * sizeof(mat4));
-    VkBuffer modelMatricesBuffer;
-    VkDeviceMemory modelMatricesMemory;
-    createModelMatricesBuffer(device, physicalDevice, numObjects, &modelMatricesBuffer, &modelMatricesMemory);
-    VkDeviceSize modelsBufferSize = calculateModelMatricesBufferSize(physicalDevice); // probably just call this in createModelMatricesBuffer but remember it needs to be called when despawning(not implmented yet)
+    VkBuffer modelsBuffer;
+    VkDeviceMemory modelsMemory;
+    createModelsBuffer(device, physicalDevice, numObjects, &modelsBuffer, &modelsMemory);
+    VkDeviceSize modelsBufferSize = calculateModelsBufferSize(physicalDevice); // probably just call this in createModelsBuffer but remember it needs to be called when despawning(not implmented yet)
 
     // View matrix
     mat4 view;
@@ -1426,16 +1433,15 @@ int main()
     float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
     createProjectionMatrix(projection, 45.0f, aspectRatio, 0.1f, 10.0f);
 
-
     // Unified buffer object setup (do not mistake the uniform buffer with the vertex buffer and the layout descriptor with the attribute and binding descriptor)
-    // need to createDescriptorSets after 
+    // need to createDescriptorSets after
     VkBuffer uniformBuffers[swapChainImageCount];
     VkDeviceMemory uniformBufferMemory[swapChainImageCount]; // created as an array but used in update as an item of said array
     createUniformBuffers(device, physicalDevice, swapChainImageCount, uniformBuffers, uniformBufferMemory);
 
     VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(device);
     VkDescriptorPool descriptorPool = createDescriptorPool(device, swapChainImageCount);
-    VkDescriptorSet *descriptorSets = createDescriptorSets(device, descriptorPool, descriptorSetLayout, uniformBuffers, modelMatricesBuffer, swapChainImageCount, modelsBufferSize);
+    VkDescriptorSet *descriptorSets = createDescriptorSets(device, descriptorPool, descriptorSetLayout, uniformBuffers, modelsBuffer, swapChainImageCount, modelsBufferSize);
 
     // pipeline layout creation and and actual pipeline creation (note the descriptor for bindings and attributes not the same as layout descriptor)
 
@@ -1491,7 +1497,7 @@ int main()
 
         updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, view, projection); // updates projection and view
 
-        updateModelMatricesBuffer(device, modelMatricesMemory, models, numObjects); // updates models
+        updateModelsBuffer(device, modelsMemory, models, numObjects); // updates models
 
         recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout, numObjects, modelsBufferSize);
         // 2. Submit the command buffer
@@ -1540,9 +1546,9 @@ int main()
     vkDeviceWaitIdle(device);
 
     // Cleanup: matrices
+    vkDestroyBuffer(device, modelsBuffer, NULL);
+    vkFreeMemory(device, modelsMemory, NULL);
     free(models);
-    vkDestroyBuffer(device, modelMatricesBuffer, NULL);
-    vkFreeMemory(device, modelMatricesMemory, NULL);
 
     // Cleanup: Synchronization objects
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -1581,6 +1587,7 @@ int main()
     vkDestroyRenderPass(device, renderPass, NULL);
 
     // UBO and Descriptor related cleanup
+    free(descriptorSets);
     vkDestroyDescriptorPool(device, descriptorPool, NULL);
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, NULL);
 

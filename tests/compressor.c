@@ -52,7 +52,7 @@ int main() {
     char line[1024];
     bool isFirstCodeLineWritten = false;
 
-    fp = fopen("e.txt", "r+");
+    fp = fopen("compressed.vulkanapp.txt", "r+");
     if (fp == NULL) {
         printf("Error opening the file.\n");
         return 1;
@@ -77,7 +77,7 @@ int main() {
     fclose(tmp);
 
     // Overwrite the original file
-    fp = fopen("e.txt", "w");
+    fp = fopen("compressed.vulkanapp.txt", "w");
     tmp = fopen("temp.txt", "r");
 
     while (fgets(line, sizeof(line), tmp)) {

@@ -2,10 +2,14 @@
 
 layout(binding = 0) uniform UBO {
     float time;
-    mat4 model; // Model matrix now includes translation
     mat4 view;
     mat4 projection;
 } ubo;
+
+// This uniform will receive the dynamic model matrices
+layout(binding = 1) uniform DynModel {
+    mat4 models[100]; // Example size, adjust as needed
+} dynModel;
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 0) out vec3 fragPosition;
@@ -18,8 +22,8 @@ void main() {
     // Rotation matrix around the Y-axis
     mat4 rotationMatrix = mat4(cos(angle), 0.0, sin(angle), 0.0, 0.0, 1.0, 0.0, 0.0, -sin(angle), 0.0, cos(angle), 0.0, 0.0, 0.0, 0.0, 1.0);
 
-    // Apply rotation and then model (translation) matrix
-    mat4 modelMatrix = ubo.model * rotationMatrix;
+    // Get the correct model matrix using gl_InstanceIndex and apply rotation
+    mat4 modelMatrix = dynModel.models[gl_InstanceIndex] * rotationMatrix;
     vec4 worldPosition = modelMatrix * vec4(inPosition, 1.0);
 
     // Apply view and projection transformations
