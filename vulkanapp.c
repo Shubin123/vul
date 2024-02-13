@@ -272,6 +272,7 @@ void handleWindowResize(UserData *userData, mat4 *projection)
 
         userData->windowData.wasResized = false;
     }
+    
 }
 
 // VULKAN
@@ -970,66 +971,54 @@ VkCommandBuffer *allocateCommandBuffers(VkDevice device, VkCommandPool commandPo
     return commandBuffers;
 }
 
-void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkBuffer indexBuffer, uint32_t indexCount, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout, int numObjects, VkDeviceSize modelsBufferSize)
-{
-    vkResetCommandBuffer(commandBuffers[imageIndex], 0);
+void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t swapChainImageCount, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkBuffer indexBuffer, uint32_t indexCount, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout, int numObjects, VkDeviceSize modelsBufferSize) {
+    for (uint32_t i = 0; i < swapChainImageCount; ++i) {
+        vkResetCommandBuffer(commandBuffers[i], 0);
 
-    VkCommandBufferBeginInfo beginInfo = {0};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-    beginInfo.pInheritanceInfo = NULL;
+        VkCommandBufferBeginInfo beginInfo = {0};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+        beginInfo.pInheritanceInfo = NULL;
 
-    if (vkBeginCommandBuffer(commandBuffers[imageIndex], &beginInfo) != VK_SUCCESS)
-    {
-        fprintf(stderr, "Failed to begin recording command buffer at index %u\n", imageIndex);
-        exit(EXIT_FAILURE);
-    }
+        if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
+            fprintf(stderr, "Failed to begin recording command buffer at index %u\n", i);
+            exit(EXIT_FAILURE);
+        }
 
-    // Begin render pass
-    VkRenderPassBeginInfo renderPassInfo = {0};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = renderPass;
-    renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
-    renderPassInfo.renderArea.offset = (VkOffset2D){0, 0};
-    renderPassInfo.renderArea.extent = swapChainExtent;
-    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
-    vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        VkRenderPassBeginInfo renderPassInfo = {0};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = swapChainFramebuffers[i];
+        renderPassInfo.renderArea.offset = (VkOffset2D){0, 0};
+        renderPassInfo.renderArea.extent = swapChainExtent;
+        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
 
-    // Bind the pipeline
-    vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-    VkBuffer vertexBuffers[] = {vertexBuffer};
-    VkDeviceSize offsets[] = {0};
+        vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-    // bind vertex buffer
-    vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, vertexBuffers, offsets);
+        VkBuffer vertexBuffers[] = {vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-    // bind index buffer
-    vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        // Bind descriptor set for each swap chain image
+        uint32_t dynamicOffset = i * (uint32_t)(modelsBufferSize);
+        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
 
-    for (int i = 0; i < numObjects; ++i)
-    {
-        // Calculate dynamic offset for the current object's model matrices
-        uint32_t dynamicOffset = (uint32_t)(i * modelsBufferSize);
+        // Draw all instances in a single call
+        vkCmdDrawIndexed(commandBuffers[i], indexCount, numObjects, 0, 0, 0);
 
-        // Bind descriptor set with dynamic offset
-        vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 1, &dynamicOffset);
+        vkCmdEndRenderPass(commandBuffers[i]);
 
-        // Draw the object
-        vkCmdDrawIndexed(commandBuffers[imageIndex], indexCount, 1, 0, 0, 0);
-    }
-
-    // End the render pass
-    vkCmdEndRenderPass(commandBuffers[imageIndex]);
-
-    // End the command buffer
-    if (vkEndCommandBuffer(commandBuffers[imageIndex]) != VK_SUCCESS)
-    {
-        fprintf(stderr, "Failed to end recording command buffer at index %u\n", imageIndex);
-        exit(EXIT_FAILURE);
+        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+            fprintf(stderr, "Failed to end recording command buffer at index %u\n", i);
+            exit(EXIT_FAILURE);
+        }
     }
 }
+
 
 VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, VkBuffer *uniformBuffers, VkBuffer modelsBuffer, uint32_t descriptorSetCount, VkDeviceSize modelsBufferSize)
 {
@@ -1169,7 +1158,7 @@ VkDeviceSize calculateModelsBufferSize(VkPhysicalDevice physicalDevice)
 }
 
 // createVertexBuffer and createIndexBuffer and createModelsBuffer are functions that depend on createBuffer
-void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory)
+VkResult createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory)
 {
     VkBufferCreateInfo bufferInfo = {0};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -1180,7 +1169,7 @@ void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize
     if (vkCreateBuffer(device, &bufferInfo, NULL, buffer) != VK_SUCCESS)
     {
         fprintf(stderr, "Failed to create buffer\n");
-        exit(EXIT_FAILURE);
+        return VK_ERROR_INITIALIZATION_FAILED;
     }
 
     VkMemoryRequirements memRequirements;
@@ -1194,14 +1183,18 @@ void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize
     if (vkAllocateMemory(device, &allocInfo, NULL, bufferMemory) != VK_SUCCESS)
     {
         fprintf(stderr, "Failed to allocate buffer memory\n");
-        exit(EXIT_FAILURE);
+        return VK_ERROR_INITIALIZATION_FAILED;
     }
 
     vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
+
+    return VK_SUCCESS;
 }
 
 void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
 {
+    VkResult result;
+
     const Vertex vertices[] = {
         // Front face
         {{-0.5f, -0.5f, 0.5f}}, // Vertex 0
@@ -1220,7 +1213,11 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuff
     VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertexCount;
 
     // Create vertex buffer
-    createBuffer(device, physicalDevice, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
+    result = createBuffer(device, physicalDevice, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
+    if (result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create vertex buffer\n");
+        exit(EXIT_FAILURE);
+    }
 
     // Copy vertex data to vertex buffer
     copyDataToDeviceMemory(device, *vertexBufferMemory, vertices, vertexBufferSize);
@@ -1228,7 +1225,7 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuff
 
 void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint32_t *indexCount)
 {
-
+    VkResult result;
     const uint16_t indices[] = {
         0, 1, 2, 2, 3, 0, // Front face
         1, 5, 6, 6, 2, 1, // Right face
@@ -1242,24 +1239,39 @@ void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffe
     VkDeviceSize indexBufferSize = sizeof(uint16_t) * (*indexCount);
 
     // Create index buffer
-    createBuffer(device, physicalDevice, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
-
+    result = createBuffer(device, physicalDevice, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
+    if (result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create index buffer\n");
+        exit(EXIT_FAILURE);
+    }
     // Copy index data to index buffer
     copyDataToDeviceMemory(device, *indexBufferMemory, indices, indexBufferSize);
 }
 
 // createModelsBuffer creates inital offsets well create a model co-ordinate storing system later
-void createModelsBuffer(VkDevice device, VkPhysicalDevice physicalDevice, int numObjects, VkBuffer *modelsBuffer, VkDeviceMemory *modelsMemory)
+void createModelsBuffer(VkDevice device, VkPhysicalDevice physicalDevice, int numObjects, VkBuffer *modelMatricesBuffer, VkDeviceMemory *modelMatricesMemory)
 {
+    VkResult result;
+
     VkDeviceSize alignedModelMatrixSize = calculateModelsBufferSize(physicalDevice);
     VkDeviceSize bufferSize = alignedModelMatrixSize * numObjects;
 
     // Create the buffer with the correctly calculated size
-    createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, modelsBuffer, modelsMemory);
+    result = createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, modelMatricesBuffer, modelMatricesMemory);
+    if (result != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to create model matrices buffer\n");
+        exit(EXIT_FAILURE);
+    }
 
     // Map the buffer and initialize it with offset identity matrices
     void *data;
-    vkMapMemory(device, *modelsMemory, 0, bufferSize, 0, &data);
+    result = vkMapMemory(device, *modelMatricesMemory, 0, bufferSize, 0, &data);
+    if (result != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to map model matrices memory\n");
+        exit(EXIT_FAILURE);
+    }
 
     mat4 *matrices = (mat4 *)data;
     for (int i = 0; i < numObjects; ++i)
@@ -1268,8 +1280,10 @@ void createModelsBuffer(VkDevice device, VkPhysicalDevice physicalDevice, int nu
         glm_translate(matrices[i], (vec3){(float)i, 0.0f, 0.0f}); // Horizontal offset for example
     }
 
-    vkUnmapMemory(device, *modelsMemory);
+    vkUnmapMemory(device, *modelMatricesMemory);
 }
+
+
 
 void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore **imageAvailableSemaphores, VkSemaphore **renderFinishedSemaphores, VkFence **inFlightFences)
 {
@@ -1344,8 +1358,8 @@ int main()
     // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) =>  frame_buffers => command_buffers => command_pool => vertex_buffer => sync_objects => index_buffer => model view projection matricies =>  ubo initialization => descriptor setting  => graphics_pipeline => callbacks => main_loop => cleanup
     // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mvp, ubo , bind callbacks, graphics pipeline, mainloop, clean up
 
-    setenv("MVK_CONFIG_LOG_LEVEL", "20", 1); // 1 means overwrite existing value
-    setenv("MVK_DEBUG", "69", 1);
+    setenv("MVK_CONFIG_LOG_LEVEL", "3", 1); // 1 means overwrite existing value
+    setenv("MVK_DEBUG", "2", 1);
 
     VkQueue graphicsQueue, presentQueue;
 
@@ -1402,14 +1416,14 @@ int main()
     createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
 
     // semaphore, fence and sync objects
-    const int MAX_FRAMES_IN_FLIGHT = 1; // used for sync
+    const int MAX_FRAMES_IN_FLIGHT = 2;
     VkSemaphore *imageAvailableSemaphores;
     VkSemaphore *renderFinishedSemaphores;
     VkFence *inFlightFences;
 
     createSyncObjects(device, MAX_FRAMES_IN_FLIGHT, &imageAvailableSemaphores, &renderFinishedSemaphores, &inFlightFences);
 
-    int numObjects = 5; // number of objects to render
+    int numObjects = 1; // number of objects to render
 
     // projection setup
     // Example of camera parameters
@@ -1469,14 +1483,22 @@ int main()
 
         double currentTime = glfwGetTime();
 
-        if (userData->keyStates.keyWPressed)
+        if (userData->keyStates.keyWPressed){
             transform.translateY += 0.01f;
-        if (userData->keyStates.keySPressed)
+            printf("W pressed\n");
+        }
+        if (userData->keyStates.keySPressed){
             transform.translateY -= 0.01f;
-        if (userData->keyStates.keyAPressed)
+            printf("S pressed\n");
+        }
+        if (userData->keyStates.keyAPressed){
             transform.translateX -= 0.01f;
-        if (userData->keyStates.keyDPressed)
+            printf("A pressed\n");
+        }
+        if (userData->keyStates.keyDPressed){
             transform.translateX += 0.01f;
+            printf("D pressed\n");
+        }
 
         applyFriction(&transform, 0.95f);
 
@@ -1499,7 +1521,7 @@ int main()
 
         updateModelsBuffer(device, modelsMemory, models, numObjects); // updates models
 
-        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout, numObjects, modelsBufferSize);
+        recordCommandBuffers(commandBuffers, swapChainImageCount, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout, numObjects, modelsBufferSize);
         // 2. Submit the command buffer
         VkSubmitInfo submitInfo = {0};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

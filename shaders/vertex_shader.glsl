@@ -8,7 +8,7 @@ layout(binding = 0) uniform UBO {
 
 // This uniform will receive the dynamic model matrices
 layout(binding = 1) uniform DynModel {
-    mat4 models[100]; // Example size, adjust as needed
+    mat4 models[1]; // Example size, adjust as needed
 } dynModel;
 
 layout(location = 0) in vec3 inPosition;
