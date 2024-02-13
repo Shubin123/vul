@@ -14,10 +14,14 @@ typedef struct
 typedef struct
 {
     float time;
-    mat4 model;
     mat4 view;
     mat4 projection;
 } UBO;
+
+typedef struct
+{
+    mat4 model;
+} InstanceData;
 
 typedef struct
 {
@@ -167,7 +171,7 @@ uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, Vk
     exit(EXIT_FAILURE);
 }
 
-UserData *createUserData()
+UserData *createUserData(uint32_t windowWidth, uint32_t windowHeight)
 {
     UserData *userData = malloc(sizeof(UserData));
     if (!userData)
@@ -177,8 +181,8 @@ UserData *createUserData()
     }
 
     // Initialize WindowData
-    userData->windowData.width = 800;
-    userData->windowData.height = 600;
+    userData->windowData.width = windowWidth;
+    userData->windowData.height = windowHeight;
     userData->windowData.wasResized = false;
 
     // Initialize KeyStates
@@ -236,7 +240,7 @@ void framebufferResizeCallback(GLFWwindow *window, int width, int height)
     }
 }
 
-GLFWwindow *createWindow()
+GLFWwindow *createWindow(uint32_t windowWidth, uint32_t windowHeight)
 {
     if (!glfwInit())
     {
@@ -245,7 +249,7 @@ GLFWwindow *createWindow()
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow *window = glfwCreateWindow(800, 600, "Vulkan Bimbo", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(windowWidth, windowHeight, "Vulkan Bimbo", NULL, NULL);
     if (!window)
     {
         fprintf(stderr, "Failed to create GLFW window\n");
@@ -737,12 +741,26 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     bindingDescription.stride = sizeof(Vertex); // Size of a single vertex object
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
+    VkVertexInputBindingDescription instanceBindingDescription = {0};
+    instanceBindingDescription.binding = 1; // Binding index 1 for instance data
+    instanceBindingDescription.stride = sizeof(InstanceData);
+    instanceBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+
     // attributes
     VkVertexInputAttributeDescription attributeDescriptions[2] = {0};
     attributeDescriptions[0].binding = 0;                           // Matches the binding in the bindingDescription
     attributeDescriptions[0].location = 0;                          // Location in the shader (layout(location = 0))
     attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;   // Format for vec3 (3 floats)
     attributeDescriptions[0].offset = offsetof(Vertex, inPosition); // Offset of 'inPosition' within the Vertex struct
+
+    VkVertexInputAttributeDescription instanceAttributeDescriptions[4];
+    for (int i = 0; i < 4; ++i)
+    {
+        instanceAttributeDescriptions[i].binding = 1;      // Assuming instance data is at binding index 1
+        instanceAttributeDescriptions[i].location = 1 + i; // Locations 1, 2, 3, 4
+        instanceAttributeDescriptions[i].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        instanceAttributeDescriptions[i].offset = sizeof(float) * 4 * i;
+    }
 
     // vertex binding
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
@@ -751,6 +769,14 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
     vertexInputInfo.vertexAttributeDescriptionCount = 1;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
+
+    VkVertexInputBindingDescription bindings[] = {bindingDescription, instanceBindingDescription};
+    VkVertexInputAttributeDescription attributes[] = {attributeDescriptions[0], instanceAttributeDescriptions[0], instanceAttributeDescriptions[1], instanceAttributeDescriptions[2], instanceAttributeDescriptions[3]};
+
+    vertexInputInfo.vertexBindingDescriptionCount = 2; // Two bindings: one for vertex, one for instance
+    vertexInputInfo.pVertexBindingDescriptions = bindings;
+    vertexInputInfo.vertexAttributeDescriptionCount = 5; // Total number of attribute descriptions
+    vertexInputInfo.pVertexAttributeDescriptions = attributes;
 
     // Input Assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
@@ -887,11 +913,10 @@ void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint
     }
 }
 
-void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time, mat4 model, mat4 view, mat4 projection)
+void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time, mat4 view, mat4 projection)
 {
     UBO ubo;
     ubo.time = time;
-    glm_mat4_copy(model, ubo.model);           // Copy the model matrix
     glm_mat4_copy(view, ubo.view);             // Copy the view matrix
     glm_mat4_copy(projection, ubo.projection); // Copy the projection matrix
 
@@ -901,6 +926,13 @@ void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, do
     vkUnmapMemory(device, uniformBufferMemory);
 }
 
+void updateInstanceBuffer(VkDevice device, VkDeviceMemory instanceBufferMemory, InstanceData *instanceData, uint32_t instanceCount)
+{
+    void *data;
+    vkMapMemory(device, instanceBufferMemory, 0, sizeof(InstanceData) * instanceCount, 0, &data);
+    memcpy(data, instanceData, sizeof(InstanceData) * instanceCount);
+    vkUnmapMemory(device, instanceBufferMemory);
+}
 VkFramebuffer *createFramebuffers(VkDevice device, VkImageView *swapChainImageViews, uint32_t swapChainImageCount, VkExtent2D swapChainExtent, VkRenderPass renderPass)
 {
     VkFramebuffer *swapChainFramebuffers = malloc(swapChainImageCount * sizeof(VkFramebuffer));
@@ -964,7 +996,7 @@ VkCommandBuffer *allocateCommandBuffers(VkDevice device, VkCommandPool commandPo
     return commandBuffers;
 }
 
-void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkBuffer indexBuffer, uint32_t indexCount, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout)
+void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkBuffer indexBuffer, VkBuffer instanceBuffer, uint32_t indexCount, uint32_t instanceCount, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout)
 {
     vkResetCommandBuffer(commandBuffers[imageIndex], 0);
 
@@ -991,11 +1023,13 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Bind the pipeline and vertex buffer
+    // Bind the pipeline
     vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-    VkBuffer vertexBuffers[] = {vertexBuffer};
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, vertexBuffers, offsets);
+
+    // Bind the vertex and instance buffers and their offsets
+    VkBuffer vertexBuffers[] = {vertexBuffer, instanceBuffer};
+    VkDeviceSize offsets[] = {0, 0};
+    vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 2, vertexBuffers, offsets);
 
     // Bind the index buffer
     vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16); // Assuming uint16_t indices
@@ -1004,7 +1038,7 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, NULL);
 
     // Issue the indexed draw call
-    vkCmdDrawIndexed(commandBuffers[imageIndex], indexCount, 1, 0, 0, 0);
+    vkCmdDrawIndexed(commandBuffers[imageIndex], indexCount, instanceCount, 0, 0, 0);
 
     // End the render pass
     vkCmdEndRenderPass(commandBuffers[imageIndex]);
@@ -1192,6 +1226,20 @@ void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffe
     copyDataToDeviceMemory(device, *indexBufferMemory, indices, indexBufferSize);
 }
 
+void createInstanceBuffer(VkDevice device, VkPhysicalDevice physicalDevice, InstanceData *instanceData, uint32_t instanceCount, VkBuffer *instanceBuffer, VkDeviceMemory *instanceBufferMemory)
+{
+    VkDeviceSize bufferSize = sizeof(InstanceData) * instanceCount;
+
+    // Create the buffer
+    createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, instanceBuffer, instanceBufferMemory);
+
+    // Map the buffer and copy the instance data into it
+    void *data;
+    vkMapMemory(device, *instanceBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, instanceData, (size_t)bufferSize);
+    vkUnmapMemory(device, *instanceBufferMemory);
+}
+
 void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore **imageAvailableSemaphores, VkSemaphore **renderFinishedSemaphores, VkFence **inFlightFences)
 {
     *imageAvailableSemaphores = malloc(sizeof(VkSemaphore) * maxFramesInFlight);
@@ -1219,6 +1267,30 @@ void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore 
 }
 
 // CGLM
+
+void createModelMatricesForGridArray(InstanceData *instanceData, uint32_t instanceCount)
+{
+    int rows = floor(sqrt(instanceCount));
+    int cols = ceil((float)instanceCount / rows);
+
+    for (uint32_t i = 0; i < instanceCount; ++i)
+    {
+        int row = i / cols;
+        int col = i % cols;
+
+        glm_mat4_identity(instanceData[i].model);
+
+        // Set translation for each cube to create a grid
+        vec3 translation = {1.5f * col, 1.5f * row, 0.0f };
+        glm_translate(instanceData[i].model, translation);
+    }
+}
+
+void createModelMatrix(mat4 *modelMatrix)
+{
+    glm_mat4_identity(*modelMatrix);
+}
+
 void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 cameraUp)
 {
     glm_lookat(cameraPos, cameraTarget, cameraUp, viewMatrix);
@@ -1255,6 +1327,8 @@ int main()
 
     setenv("MVK_CONFIG_LOG_LEVEL", "3", 1); // 1 means overwrite existing value
     setenv("MVK_DEBUG", "2", 1);
+    uint32_t initialWindowWidth = 800;
+    uint32_t initialWindowHeight = 600;
 
     VkQueue graphicsQueue, presentQueue;
 
@@ -1266,9 +1340,9 @@ int main()
 
     // Initialize GLFW Window, WindowData struct with the created window handle
 
-    UserData *userData = createUserData(); // used for key press handling and window resizing
+    UserData *userData = createUserData(initialWindowWidth, initialWindowHeight); // used for key press handling and window resizing
 
-    GLFWwindow *window = createWindow();
+    GLFWwindow *window = createWindow(initialWindowWidth, initialWindowHeight);
 
     VkInstance instance = createVulkanInstance();
 
@@ -1339,9 +1413,18 @@ int main()
     vec3 cameraTarget = {0.0f, 0.0f, 0.0f}; // Camera target
     vec3 up = {0.0f, 1.0f, 0.0f};           // Up direction
 
-    // Model matrix
-    mat4 model;
-    glm_mat4_identity(model);
+    // Models matrices
+
+    // Create an instance buffer
+    VkBuffer instanceBuffer;
+    VkDeviceMemory instanceBufferMemory;
+    uint32_t instanceCount = 5;
+
+    InstanceData *instanceData = malloc(sizeof(InstanceData) * instanceCount);
+
+    createModelMatricesForGridArray(instanceData, instanceCount);
+
+    createInstanceBuffer(device, physicalDevice, instanceData, instanceCount, &instanceBuffer, &instanceBufferMemory);
 
     // View matrix
     mat4 view;
@@ -1384,9 +1467,12 @@ int main()
 
         applyFriction(&transform, 0.95f);
 
-
         vec3 translation = {transform.translateX, transform.translateY, 0.0f}; // Only translate in X and Y
-        glm_translate(model, translation);
+
+        for (uint32_t i = 0; i < instanceCount; i++)
+        {
+            glm_translate(instanceData[i].model, translation);
+        }
 
         // printf("dx: %f, dy: %f\n", transform.translateX, transform.translateY);
 
@@ -1400,9 +1486,11 @@ int main()
 
         handleWindowResize(userData, &projection);
 
-        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, model, view, projection); // will need to modify this
+        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, view, projection); // will need to modify this
 
-        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout);
+        updateInstanceBuffer(device, instanceBufferMemory, instanceData, instanceCount);
+
+        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, instanceBuffer, indexCount, instanceCount, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer
         VkSubmitInfo submitInfo = {0};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1459,6 +1547,12 @@ int main()
     free(imageAvailableSemaphores);
     free(inFlightFences);
 
+    // Cleanup: Instance Buffer
+
+    vkDestroyBuffer(device, instanceBuffer, NULL);    // Destroy the instance buffer
+    vkFreeMemory(device, instanceBufferMemory, NULL); // Free the memory used by the instance buffer
+    free(instanceData);
+
     // Cleanup: Command Buffers and Command Pool
     vkFreeCommandBuffers(device, commandPool, swapChainImageCount, commandBuffers);
     free(commandBuffers);
@@ -1513,4 +1607,3 @@ int main()
 
     return 0;
 }
-
