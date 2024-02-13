@@ -14,6 +14,7 @@ typedef struct
 typedef struct
 {
     float time;
+    mat4 model;
     mat4 view;
     mat4 projection;
 } UBO;
@@ -547,26 +548,19 @@ VkSwapchainKHR createSwapChain(VkPhysicalDevice physicalDevice, VkDevice device,
     return swapChain;
 }
 
-VkSurfaceFormatKHR chooseSwapSurfaceFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
+{
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, NULL);
 
-    if (formatCount == 0) {
-        fprintf(stderr, "No surface formats found\n");
-        exit(EXIT_FAILURE);
-    }
-
     VkSurfaceFormatKHR *formats = malloc(formatCount * sizeof(VkSurfaceFormatKHR));
-    if (formats == NULL) {
-        fprintf(stderr, "Failed to allocate memory for surface formats\n");
-        exit(EXIT_FAILURE);
-    }
-
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, formats);
 
     VkSurfaceFormatKHR chosenFormat = formats[0];
-    for (uint32_t i = 0; i < formatCount; i++) {
-        if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB && formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+    for (uint32_t i = 0; i < formatCount; i++)
+    {
+        if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB && formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        {
             chosenFormat = formats[i];
             break;
         }
@@ -793,7 +787,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; // cull (efficient but may lead to render bugs)
-    // rasterizer.cullMode = VK_CULL_MODE_NONE; // to disable culling/
+    rasterizer.cullMode = VK_CULL_MODE_NONE;     // to disable culling/
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -835,6 +829,11 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex = -1;
+
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;
+
+    pipelineInfo.layout = pipelineLayout;
 
     VkPipeline graphicsPipeline;
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline) != VK_SUCCESS)
@@ -888,10 +887,11 @@ void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice, uint
     }
 }
 
-void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time, mat4 view, mat4 projection)
+void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, double time, mat4 model, mat4 view, mat4 projection)
 {
     UBO ubo;
     ubo.time = time;
+    glm_mat4_copy(model, ubo.model);           // Copy the model matrix
     glm_mat4_copy(view, ubo.view);             // Copy the view matrix
     glm_mat4_copy(projection, ubo.projection); // Copy the projection matrix
 
@@ -899,14 +899,6 @@ void updateUniformBuffer(VkDevice device, VkDeviceMemory uniformBufferMemory, do
     vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(device, uniformBufferMemory);
-}
-
-void updateModelsBuffer(VkDevice device, VkDeviceMemory memory, mat4 *models, int numObjects)
-{
-    void *data;
-    vkMapMemory(device, memory, 0, numObjects * sizeof(mat4), 0, &data);
-    memcpy(data, models, numObjects * sizeof(mat4));
-    vkUnmapMemory(device, memory);
 }
 
 VkFramebuffer *createFramebuffers(VkDevice device, VkImageView *swapChainImageViews, uint32_t swapChainImageCount, VkExtent2D swapChainExtent, VkRenderPass renderPass)
@@ -972,7 +964,7 @@ VkCommandBuffer *allocateCommandBuffers(VkDevice device, VkCommandPool commandPo
     return commandBuffers;
 }
 
-void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkBuffer indexBuffer, uint32_t indexCount, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout, int numObjects, VkDeviceSize modelsBufferSize)
+void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, VkRenderPass renderPass, VkExtent2D swapChainExtent, VkFramebuffer *swapChainFramebuffers, VkPipeline graphicsPipeline, VkBuffer vertexBuffer, VkBuffer indexBuffer, uint32_t indexCount, VkDescriptorSet *descriptorSets, VkPipelineLayout pipelineLayout)
 {
     vkResetCommandBuffer(commandBuffers[imageIndex], 0);
 
@@ -999,25 +991,20 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     renderPassInfo.pClearValues = &clearColor;
     vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Bind the pipeline
+    // Bind the pipeline and vertex buffer
     vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
     VkBuffer vertexBuffers[] = {vertexBuffer};
     VkDeviceSize offsets[] = {0};
-
-    // Bind vertex buffer
     vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, vertexBuffers, offsets);
 
-    // Bind index buffer
-    vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    // Bind the index buffer
+    vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16); // Assuming uint16_t indices
 
-    // Calculate dynamic offset for the model matrices
-    uint32_t dynamicOffset = modelsBufferSize * imageIndex;
-    // Bind descriptor set with dynamic offset
-    vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 1, &dynamicOffset);
+    // Bind descriptor set
+    vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, NULL);
 
-    // Draw the object with instancing
-    vkCmdDrawIndexed(commandBuffers[imageIndex], indexCount, numObjects, 0, 0, 0);
+    // Issue the indexed draw call
+    vkCmdDrawIndexed(commandBuffers[imageIndex], indexCount, 1, 0, 0, 0);
 
     // End the render pass
     vkCmdEndRenderPass(commandBuffers[imageIndex]);
@@ -1030,8 +1017,7 @@ void recordCommandBuffers(VkCommandBuffer *commandBuffers, uint32_t imageIndex, 
     }
 }
 
-
-VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, VkBuffer *uniformBuffers, VkBuffer modelsBuffer, uint32_t descriptorSetCount, VkDeviceSize alignedModelsBufferSize)
+VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, VkBuffer *uniformBuffers, uint32_t descriptorSetCount)
 {
     VkDescriptorSet *descriptorSets = malloc(descriptorSetCount * sizeof(VkDescriptorSet));
 
@@ -1056,40 +1042,24 @@ VkDescriptorSet *createDescriptorSets(VkDevice device, VkDescriptorPool descript
         exit(EXIT_FAILURE);
     }
 
-    // Configure each descriptor set
+    // Configure each descriptor set to reference the appropriate uniform buffer
     for (uint32_t i = 0; i < descriptorSetCount; ++i)
     {
-        VkDescriptorBufferInfo uboBufferInfo = {0};
-        uboBufferInfo.buffer = uniformBuffers[i];
-        uboBufferInfo.offset = 0;
-        uboBufferInfo.range = sizeof(UBO);
+        VkDescriptorBufferInfo bufferInfo = {0};
+        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UBO);
 
-        VkDescriptorBufferInfo modelsBufferInfo = {0};
-        modelsBufferInfo.buffer = modelsBuffer;
-        modelsBufferInfo.offset = 0;
-        modelsBufferInfo.range = alignedModelsBufferSize;
+        VkWriteDescriptorSet descriptorWrite = {0};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = descriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
 
-        VkWriteDescriptorSet descriptorWrites[2] = {0};
-
-        // UBO descriptor write
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = descriptorSets[i];
-        descriptorWrites[0].dstBinding = 0; // UBO binding
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &uboBufferInfo;
-
-        // Models buffer descriptor write
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = descriptorSets[i];
-        descriptorWrites[1].dstBinding = 1; // Models buffer binding
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pBufferInfo = &modelsBufferInfo;
-
-        vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, NULL);
+        vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, NULL);
     }
 
     free(layouts);
@@ -1102,21 +1072,13 @@ VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device)
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    uboLayoutBinding.pImmutableSamplers = NULL;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // or VK_SHADER_STAGE_FRAGMENT_BIT, etc., depending on your needs
+    uboLayoutBinding.pImmutableSamplers = NULL;               // Optional
 
-    VkDescriptorSetLayoutBinding modelsLayoutBinding = {0};
-    modelsLayoutBinding.binding = 1;
-    modelsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    modelsLayoutBinding.descriptorCount = 1;
-    modelsLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    modelsLayoutBinding.pImmutableSamplers = NULL;
-
-    VkDescriptorSetLayoutBinding bindings[] = {uboLayoutBinding, modelsLayoutBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 2;
-    layoutInfo.pBindings = bindings;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
 
     VkDescriptorSetLayout descriptorSetLayout;
     if (vkCreateDescriptorSetLayout(device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS)
@@ -1130,21 +1092,15 @@ VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device)
 
 VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSets)
 {
-    VkDescriptorPoolSize poolSizes[2] = {0};
-
-    // For UBO
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = numDescriptorSets;
-
-    // For dynamic uniform buffer
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    poolSizes[1].descriptorCount = numDescriptorSets;
+    VkDescriptorPoolSize poolSize = {0};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = numDescriptorSets; // Total number of uniform buffer descriptors
 
     VkDescriptorPoolCreateInfo poolInfo = {0};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 2;
-    poolInfo.pPoolSizes = poolSizes;
-    poolInfo.maxSets = numDescriptorSets;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = numDescriptorSets; // Total number of descriptor sets
 
     VkDescriptorPool descriptorPool;
     if (vkCreateDescriptorPool(device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS)
@@ -1156,19 +1112,8 @@ VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t numDescriptorSet
     return descriptorPool;
 }
 
-VkDeviceSize calculateModelsBufferSize(VkPhysicalDevice physicalDevice)
-{
-    VkPhysicalDeviceProperties deviceProperties;
-    vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
-
-    VkDeviceSize minUboAlignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
-    VkDeviceSize modelMatrixSize = sizeof(mat4);
-    VkDeviceSize alignedModelMatrixSize = (modelMatrixSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
-    return alignedModelMatrixSize;
-}
-
-// createVertexBuffer and createIndexBuffer and createModelsBuffer are functions that depend on createBuffer
-VkResult createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory)
+// createVertexBuffer and createIndexBuffer buffer functions depend on createBuffer
+void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory)
 {
     VkBufferCreateInfo bufferInfo = {0};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -1179,7 +1124,7 @@ VkResult createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDevice
     if (vkCreateBuffer(device, &bufferInfo, NULL, buffer) != VK_SUCCESS)
     {
         fprintf(stderr, "Failed to create buffer\n");
-        return VK_ERROR_INITIALIZATION_FAILED;
+        exit(EXIT_FAILURE);
     }
 
     VkMemoryRequirements memRequirements;
@@ -1193,18 +1138,14 @@ VkResult createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDevice
     if (vkAllocateMemory(device, &allocInfo, NULL, bufferMemory) != VK_SUCCESS)
     {
         fprintf(stderr, "Failed to allocate buffer memory\n");
-        return VK_ERROR_INITIALIZATION_FAILED;
+        exit(EXIT_FAILURE);
     }
 
     vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
-
-    return VK_SUCCESS;
 }
 
 void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
 {
-    VkResult result;
-
     const Vertex vertices[] = {
         // Front face
         {{-0.5f, -0.5f, 0.5f}}, // Vertex 0
@@ -1223,12 +1164,7 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuff
     VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertexCount;
 
     // Create vertex buffer
-    result = createBuffer(device, physicalDevice, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
-    if (result != VK_SUCCESS)
-    {
-        fprintf(stderr, "Failed to create vertex buffer\n");
-        exit(EXIT_FAILURE);
-    }
+    createBuffer(device, physicalDevice, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
 
     // Copy vertex data to vertex buffer
     copyDataToDeviceMemory(device, *vertexBufferMemory, vertices, vertexBufferSize);
@@ -1236,7 +1172,7 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuff
 
 void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint32_t *indexCount)
 {
-    VkResult result;
+
     const uint16_t indices[] = {
         0, 1, 2, 2, 3, 0, // Front face
         1, 5, 6, 6, 2, 1, // Right face
@@ -1250,48 +1186,10 @@ void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffe
     VkDeviceSize indexBufferSize = sizeof(uint16_t) * (*indexCount);
 
     // Create index buffer
-    result = createBuffer(device, physicalDevice, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
-    if (result != VK_SUCCESS)
-    {
-        fprintf(stderr, "Failed to create index buffer\n");
-        exit(EXIT_FAILURE);
-    }
+    createBuffer(device, physicalDevice, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
+
     // Copy index data to index buffer
     copyDataToDeviceMemory(device, *indexBufferMemory, indices, indexBufferSize);
-}
-
-// createModelsBuffer creates inital offsets well create a model co-ordinate storing system later
-void createModelsBuffer(VkDevice device, VkPhysicalDevice physicalDevice, int numObjects, VkBuffer *modelsBuffer, VkDeviceMemory *modelsMemory, VkDeviceSize alignedModelMatrixSize)
-{
-    VkResult result;
-
-    VkDeviceSize bufferSize = alignedModelMatrixSize * numObjects;
-
-    // Create the buffer with the correctly calculated size
-    result = createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, modelsBuffer, modelsMemory);
-    if (result != VK_SUCCESS)
-    {
-        fprintf(stderr, "Failed to create model matrices buffer\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Map the buffer and initialize it with offset identity matrices
-    void *data;
-    result = vkMapMemory(device, *modelsMemory, 0, bufferSize, 0, &data);
-    if (result != VK_SUCCESS)
-    {
-        fprintf(stderr, "Failed to map model matrices memory\n");
-        exit(EXIT_FAILURE);
-    }
-
-    mat4 *matrices = (mat4 *)data;
-    for (int i = 0; i < numObjects; ++i)
-    {
-        glm_mat4_identity(matrices[i]);
-        glm_translate(matrices[i], (vec3){0.0f, 0.0f, 0.0f}); // Horizontal offset for example
-    }
-
-    vkUnmapMemory(device, *modelsMemory);
 }
 
 void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore **imageAvailableSemaphores, VkSemaphore **renderFinishedSemaphores, VkFence **inFlightFences)
@@ -1326,22 +1224,10 @@ void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 c
     glm_lookat(cameraPos, cameraTarget, cameraUp, viewMatrix);
 }
 
-void createProjectionMatrix(mat4 projection, float fov, float aspectRatio, float nearPlane, float farPlane)
+void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio, float nearPlane, float farPlane)
 {
-    glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projection);
-    projection[1][1] *= -1; // Flip the Y axis this needs to be done again when screen is resized
-}
-
-// models are being transformed uniformly rightnow
-void translateAllModels(mat4 *models, int numModels, vec3 translation)
-{
-    for (int i = 0; i < numModels; ++i)
-    {
-        mat4 translationMatrix;
-        glm_mat4_identity(translationMatrix);
-        glm_translate(translationMatrix, translation);
-        glm_mat4_mul(translationMatrix, models[i], models[i]);
-    }
+    glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projectionMatrix);
+    projectionMatrix[1][1] *= -1; // Flip the Y axis this needs to be done again when screen is resized
 }
 
 void applyFriction(Transform *transform, float frictionFactor)
@@ -1364,8 +1250,8 @@ int main()
 {
 
     // initialization/creation process to the end:
-    // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) =>  frame_buffers => command_buffers => command_pool => vertex_buffer => sync_objects => index_buffer => model view projection matricies =>  ubo initialization => descriptor setting  => graphics_pipeline => callbacks => main_loop => cleanup
-    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mvp, ubo , bind callbacks, graphics pipeline, mainloop, clean up
+    // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => ubo initialization / descriptor setting  => graphics_pipeline =>  frame_buffers => command_buffers => command_pool => vertex_buffer => sync_objects => index_buffer => main_loop => cleanup
+    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, ubo, graphics pipeline, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mainloop, clean up
 
     setenv("MVK_CONFIG_LOG_LEVEL", "3", 1); // 1 means overwrite existing value
     setenv("MVK_DEBUG", "2", 1);
@@ -1375,7 +1261,6 @@ int main()
     uint32_t swapChainImageCount;
 
     VkExtent2D swapChainExtent;
-
 
     // enumerateVulkanExtensions(); // to figure out all extensions available on the system
 
@@ -1411,6 +1296,21 @@ int main()
     char *vertexShaderCode = loadShaderCode("./shaders/vertex_shader.spv", &vertexShaderSize);
     char *fragmentShaderCode = loadShaderCode("./shaders/fragment_shader.spv", &fragmentShaderSize);
 
+    // Unified buffer object setup (do not mistake the uniform buffer with the vertex buffer and the layout descriptor with the attribute and binding descriptor)
+
+    VkBuffer uniformBuffers[swapChainImageCount];
+    VkDeviceMemory uniformBufferMemory[swapChainImageCount]; // created as an array but used in update as an item of said array
+    createUniformBuffers(device, physicalDevice, swapChainImageCount, uniformBuffers, uniformBufferMemory);
+
+    VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(device);
+    VkDescriptorPool descriptorPool = createDescriptorPool(device, swapChainImageCount);
+    VkDescriptorSet *descriptorSets = createDescriptorSets(device, descriptorPool, descriptorSetLayout, uniformBuffers, swapChainImageCount);
+
+    // pipeline layout creation and and actual pipeline creation (note the descriptor for bindings and attributes not the same as layout descriptor)
+
+    VkPipelineLayout pipelineLayout = createPipelineLayout(device, &descriptorSetLayout, 1);
+    VkPipeline graphicsPipeline = createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, vertexShaderCode, vertexShaderSize, fragmentShaderCode, fragmentShaderSize);
+
     // Framebuffers, Command Pool, Command Buffers, Vertex Buffer, Synchronization Objects
 
     VkFramebuffer *swapChainFramebuffers = createFramebuffers(device, swapChainImageViews, swapChainImageCount, swapChainExtent, renderPass);
@@ -1439,14 +1339,9 @@ int main()
     vec3 cameraTarget = {0.0f, 0.0f, 0.0f}; // Camera target
     vec3 up = {0.0f, 1.0f, 0.0f};           // Up direction
 
-    // Model matrices
-    int numObjects = 5; // number of objects to render
-
-    mat4 *models = malloc(numObjects * sizeof(mat4));
-    VkBuffer modelsBuffer;
-    VkDeviceMemory modelsMemory;
-    VkDeviceSize alignedModelsBufferSize = calculateModelsBufferSize(physicalDevice); // probably just call this in createModelsBuffer but remember it needs to be called when despawning(not implmented yet)
-    createModelsBuffer(device, physicalDevice, numObjects, &modelsBuffer, &modelsMemory, alignedModelsBufferSize);
+    // Model matrix
+    mat4 model;
+    glm_mat4_identity(model);
 
     // View matrix
     mat4 view;
@@ -1456,21 +1351,6 @@ int main()
     mat4 projection;
     float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
     createProjectionMatrix(projection, 45.0f, aspectRatio, 0.1f, 10.0f);
-
-    // Unified buffer object setup (do not mistake the uniform buffer with the vertex buffer and the layout descriptor with the attribute and binding descriptor)
-    // need to createDescriptorSets after
-    VkBuffer uniformBuffers[swapChainImageCount];
-    VkDeviceMemory uniformBufferMemory[swapChainImageCount]; // created as an array but used in update as an item of said array
-    createUniformBuffers(device, physicalDevice, swapChainImageCount, uniformBuffers, uniformBufferMemory);
-
-    VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(device);
-    VkDescriptorPool descriptorPool = createDescriptorPool(device, swapChainImageCount);
-    VkDescriptorSet *descriptorSets = createDescriptorSets(device, descriptorPool, descriptorSetLayout, uniformBuffers, modelsBuffer, swapChainImageCount, alignedModelsBufferSize);
-
-    // pipeline layout creation and and actual pipeline creation (note the descriptor for bindings and attributes not the same as layout descriptor)
-
-    VkPipelineLayout pipelineLayout = createPipelineLayout(device, &descriptorSetLayout, 1);
-    VkPipeline graphicsPipeline = createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, vertexShaderCode, vertexShaderSize, fragmentShaderCode, fragmentShaderSize);
 
     // Set the glfw callbacks
     glfwSetKeyCallback(window, keyCallback);
@@ -1482,7 +1362,7 @@ int main()
         .translateY = 0.0f};
 
     // Main loop
-    size_t currentFrame = 0; // changes every frame with respect to MAX_FRAMES_IN_FLIGHT
+    size_t currentFrame = 0;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -1494,37 +1374,23 @@ int main()
         double currentTime = glfwGetTime();
 
         if (userData->keyStates.keyWPressed)
-        {
             transform.translateY += 0.01f;
-            printf("W pressed\n");
-        }
         if (userData->keyStates.keySPressed)
-        {
             transform.translateY -= 0.01f;
-            printf("S pressed\n");
-        }
         if (userData->keyStates.keyAPressed)
-        {
             transform.translateX -= 0.01f;
-            printf("A pressed\n");
-        }
         if (userData->keyStates.keyDPressed)
-        {
             transform.translateX += 0.01f;
-            printf("D pressed\n");
-        }
 
         applyFriction(&transform, 0.95f);
 
 
+        vec3 translation = {transform.translateX, transform.translateY, 0.0f}; // Only translate in X and Y
+        glm_translate(model, translation);
+
         // printf("dx: %f, dy: %f\n", transform.translateX, transform.translateY);
 
-        vec3 translation = {transform.translateX, transform.translateY, 0.0f}; // Only translate in X and Y
-        translateAllModels(models, numObjects, translation);
-
         // 0. Wait for the previous frame to finish
-        // printf("Waiting for fence of frame %zu\n", currentFrame);
-
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
         vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
@@ -1534,11 +1400,10 @@ int main()
 
         handleWindowResize(userData, &projection);
 
-        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, view, projection); // updates projection and view
+        updateUniformBuffer(device, uniformBufferMemory[imageIndex], currentTime, model, view, projection); // will need to modify this
 
-        updateModelsBuffer(device, modelsMemory, models, numObjects); // updates models
-
-        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout, numObjects, alignedModelsBufferSize);        // 2. Submit the command buffer
+        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, indexCount, descriptorSets, pipelineLayout);
+        // 2. Submit the command buffer
         VkSubmitInfo submitInfo = {0};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -1560,8 +1425,6 @@ int main()
             fprintf(stderr, "Failed to submit draw command buffer\n");
             exit(EXIT_FAILURE);
         }
-        
-        // printf("Submitted command buffer for frame %zu\n", currentFrame);
 
         // 3. Present the image
         VkPresentInfoKHR presentInfo = {0};
@@ -1585,11 +1448,6 @@ int main()
     // Wait for the logical device to finish operations before cleanup
     vkDeviceWaitIdle(device);
 
-    // Cleanup: matrices
-    vkDestroyBuffer(device, modelsBuffer, NULL);
-    vkFreeMemory(device, modelsMemory, NULL);
-    free(models);
-
     // Cleanup: Synchronization objects
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
@@ -1597,7 +1455,6 @@ int main()
         vkDestroySemaphore(device, imageAvailableSemaphores[i], NULL);
         vkDestroyFence(device, inFlightFences[i], NULL);
     }
-    
     free(renderFinishedSemaphores);
     free(imageAvailableSemaphores);
     free(inFlightFences);
@@ -1628,7 +1485,6 @@ int main()
     vkDestroyRenderPass(device, renderPass, NULL);
 
     // UBO and Descriptor related cleanup
-    free(descriptorSets);
     vkDestroyDescriptorPool(device, descriptorPool, NULL);
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, NULL);
 
@@ -1657,3 +1513,4 @@ int main()
 
     return 0;
 }
+
