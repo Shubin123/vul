@@ -17,12 +17,13 @@ You must have clang and the ability to use make. Right now the libraries used fo
 3. make test
 
 # TODOs
-- add, test with headers in project
-- spawn multiple objects
-- bundle the app for macos
+- refactor into multiple files with src and include dont forget obj directory
+- add, test with external headers (cglm, vulkan...) put in ./external
 - manage more data with structs
 - use said structs in functions for multiple returns (ex createIndexBuffer no longer needs to be void)
-- refactor into multiple files
+- profile when adding optimization features such as multithreaded Command Buffer Generation.
+- use profiler and other debugging tools to figure out potential memory leak
 - verify shipping/building instructions on seperate machine/vm
+- bundle the app for macos
 
 

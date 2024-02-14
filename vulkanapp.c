@@ -29,6 +29,8 @@ typedef struct
     int keyAPressed;
     int keySPressed;
     int keyDPressed;
+    int keySpacePressed;
+    int keyDeletePressed;
 } KeyStates;
 
 typedef struct
@@ -190,6 +192,9 @@ UserData *createUserData(uint32_t windowWidth, uint32_t windowHeight)
     userData->keyStates.keyAPressed = false;
     userData->keyStates.keySPressed = false;
     userData->keyStates.keyDPressed = false;
+    
+    userData->keyStates.keySpacePressed = false;
+    userData->keyStates.keyDeletePressed = false;
 
     // Initialize other fields of userData as necessary...
 
@@ -214,11 +219,10 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
     // Access the KeyStates part of userData
     KeyStates *keyStates = &userData->keyStates;
 
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-    {
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
-    }
+    // printf("key: %d\n", key);
 
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
     if (key == GLFW_KEY_W)
         keyStates->keyWPressed = (action != GLFW_RELEASE);
     if (key == GLFW_KEY_A)
@@ -227,6 +231,11 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
         keyStates->keySPressed = (action != GLFW_RELEASE);
     if (key == GLFW_KEY_D)
         keyStates->keyDPressed = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_BACKSPACE)
+        keyStates->keyDeletePressed = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_SPACE)
+        keyStates->keySpacePressed = (action != GLFW_RELEASE);    
+
 }
 
 void framebufferResizeCallback(GLFWwindow *window, int width, int height)
@@ -1240,6 +1249,65 @@ void createInstanceBuffer(VkDevice device, VkPhysicalDevice physicalDevice, Inst
     vkUnmapMemory(device, *instanceBufferMemory);
 }
 
+void createModelMatricesForGridArray(InstanceData *instanceData, uint32_t instanceCount)
+{
+    int rows = floor(sqrt(instanceCount));
+    int cols = ceil((float)instanceCount / rows);
+
+    for (uint32_t i = 0; i < instanceCount; ++i)
+    {
+        int row = i / cols;
+        int col = i % cols;
+
+        glm_mat4_identity(instanceData[i].model);
+
+        // Set translation for each cube to create a grid
+        vec3 translation = {1.5f * col, 1.5f * row, 0.0f };
+        glm_translate(instanceData[i].model, translation);
+    }
+}
+
+void addInstance(VkDevice device, VkPhysicalDevice physicalDevice, Transform transform, VkBuffer *instanceBuffer, VkDeviceMemory *instanceBufferMemory, InstanceData **instanceData, uint32_t *instanceCount) {
+    *instanceCount += 1;
+    int bufferSize = sizeof(InstanceData) * (*instanceCount);
+
+    // Reallocate instanceData with the new size
+    *instanceData = realloc(*instanceData, bufferSize);
+
+    // Calculate the grid position for the new cube
+    int rows = floor(sqrt(*instanceCount));
+    int cols = ceil((float)*instanceCount / rows);
+    int row = (*instanceCount - 1) / cols;
+    int col = (*instanceCount - 1) % cols;
+
+    // Apply quantized transformation to the new cube
+    glm_mat4_identity((*instanceData)[*instanceCount - 1].model);
+    vec3 gridTranslation = {1.5f * col, 1.5f * row, 0.0f}; // Grid position
+    glm_translate((*instanceData)[*instanceCount - 1].model, gridTranslation);
+    vec3 additionalTranslation = {round(transform.translateX), round(transform.translateY), 0.0f}; // Quantized overall translation
+    glm_translate((*instanceData)[*instanceCount - 1].model, additionalTranslation);
+
+    // Destroy old buffer and create a new one with updated size
+    vkDeviceWaitIdle(device); // Wait for the device to be idle before destroying and reallocating
+    vkDestroyBuffer(device, *instanceBuffer, NULL);
+    vkFreeMemory(device, *instanceBufferMemory, NULL);
+    createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, instanceBuffer, instanceBufferMemory);
+
+    // Map the new buffer and copy the instance data into it
+    void *data;
+    vkMapMemory(device, *instanceBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, *instanceData, bufferSize);
+    vkUnmapMemory(device, *instanceBufferMemory);
+}
+
+void removeInstance(InstanceData* instanceData, uint32_t* instanceCount, uint32_t instanceIndexToRemove) {
+    if (instanceIndexToRemove < *instanceCount - 1) {
+        // Replace the removed instance with the last one (optional)
+        instanceData[instanceIndexToRemove] = instanceData[*instanceCount - 1];
+    }
+    *instanceCount -= 1; // Decrease the count of instances
+}
+
 void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore **imageAvailableSemaphores, VkSemaphore **renderFinishedSemaphores, VkFence **inFlightFences)
 {
     *imageAvailableSemaphores = malloc(sizeof(VkSemaphore) * maxFramesInFlight);
@@ -1267,24 +1335,6 @@ void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore 
 }
 
 // CGLM
-
-void createModelMatricesForGridArray(InstanceData *instanceData, uint32_t instanceCount)
-{
-    int rows = floor(sqrt(instanceCount));
-    int cols = ceil((float)instanceCount / rows);
-
-    for (uint32_t i = 0; i < instanceCount; ++i)
-    {
-        int row = i / cols;
-        int col = i % cols;
-
-        glm_mat4_identity(instanceData[i].model);
-
-        // Set translation for each cube to create a grid
-        vec3 translation = {1.5f * col, 1.5f * row, 0.0f };
-        glm_translate(instanceData[i].model, translation);
-    }
-}
 
 void createModelMatrix(mat4 *modelMatrix)
 {
@@ -1400,7 +1450,7 @@ int main()
     createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
 
     // semaphore, fence and sync objects
-    const int MAX_FRAMES_IN_FLIGHT = 2;
+    const int MAX_FRAMES_IN_FLIGHT = 3; // 3 for full triple buffering potential
     VkSemaphore *imageAvailableSemaphores;
     VkSemaphore *renderFinishedSemaphores;
     VkFence *inFlightFences;
@@ -1413,7 +1463,7 @@ int main()
     vec3 cameraTarget = {0.0f, 0.0f, 0.0f}; // Camera target
     vec3 up = {0.0f, 1.0f, 0.0f};           // Up direction
 
-    // Models matrices
+    // Models matrices (within instanceData)
 
     // Create an instance buffer
     VkBuffer instanceBuffer;
@@ -1464,6 +1514,12 @@ int main()
             transform.translateX -= 0.01f;
         if (userData->keyStates.keyDPressed)
             transform.translateX += 0.01f;
+        if (userData->keyStates.keyDeletePressed)
+            if (instanceCount > 1) // must have atleast one instance
+                removeInstance(instanceData, &instanceCount, instanceCount - 1);
+            
+        if (userData->keyStates.keySpacePressed)
+            addInstance(device, physicalDevice, transform, &instanceBuffer, &instanceBufferMemory, &instanceData, &instanceCount); // adds to instance count no need to do this elsewhere        
 
         applyFriction(&transform, 0.95f);
 
@@ -1474,7 +1530,6 @@ int main()
             glm_translate(instanceData[i].model, translation);
         }
 
-        // printf("dx: %f, dy: %f\n", transform.translateX, transform.translateY);
 
         // 0. Wait for the previous frame to finish
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
