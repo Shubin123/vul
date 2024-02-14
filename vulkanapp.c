@@ -1300,7 +1300,7 @@ void addInstance(VkDevice device, VkPhysicalDevice physicalDevice, Transform tra
     vec3 gridTranslation = {1.5f * newCol, 1.5f * newRow, 0.0f};
     glm_translate((*instanceData)[newCubeIndex].model, gridTranslation);
 
-    vec3 additionalTranslation = {round(transform.translateX), round(transform.translateY), 0.0f};
+    vec3 additionalTranslation = {transform.translateX, transform.translateY, 0.0f};
     glm_translate((*instanceData)[newCubeIndex].model, additionalTranslation);
 
     // Destroy old buffer and create a new one with updated size
@@ -1326,17 +1326,8 @@ void removeInstance(InstanceData* instanceData, uint32_t* instanceCount, uint32_
 
 void updateAllInstanceTransformations( InstanceData *instanceData, uint32_t instanceCount, float scale) {
     for (uint32_t i = 0; i < instanceCount; ++i) {
-        // Apply only scaling to each instance's model matrix
-        // Assuming the translation is already set correctly in instanceData[i].model
         glm_scale(instanceData[i].model, (vec3){scale, scale, scale});
     }
-
-
-    // Update the Vulkan instance buffer
-    // void *data;
-    // vkMapMemory(device, *instanceBufferMemory, 0, sizeof(InstanceData) * instanceCount, 0, &data);
-    // memcpy(data, instanceData, sizeof(InstanceData) * instanceCount);
-    // vkUnmapMemory(device, *instanceBufferMemory);
 }
 
 void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore **imageAvailableSemaphores, VkSemaphore **renderFinishedSemaphores, VkFence **inFlightFences)
@@ -1490,7 +1481,7 @@ int main()
 
     // projection setup
     // Example of camera parameters
-    vec3 cameraPos = {0.0f, 0.0f, 5.0f};    // Camera position
+    vec3 cameraPos = {0.0f, 0.0f, 10.0f};    // Camera position
     vec3 cameraTarget = {0.0f, 0.0f, 0.0f}; // Camera target
     vec3 up = {0.0f, 1.0f, 0.0f};           // Up direction
 
