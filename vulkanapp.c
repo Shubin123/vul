@@ -31,6 +31,8 @@ typedef struct
     int keyDPressed;
     int keySpacePressed;
     int keyDeletePressed;
+    int key1Pressed;
+    int key2Pressed;
 } KeyStates;
 
 typedef struct
@@ -51,6 +53,7 @@ typedef struct
 {
     float translateX;
     float translateY;
+    float scale; // Added scale factor
     // Add more transformation fields as needed (e.g., translateZ, rotate, scale)
 } Transform;
 
@@ -223,6 +226,7 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+
     if (key == GLFW_KEY_W)
         keyStates->keyWPressed = (action != GLFW_RELEASE);
     if (key == GLFW_KEY_A)
@@ -234,7 +238,11 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
     if (key == GLFW_KEY_BACKSPACE)
         keyStates->keyDeletePressed = (action != GLFW_RELEASE);
     if (key == GLFW_KEY_SPACE)
-        keyStates->keySpacePressed = (action != GLFW_RELEASE);    
+        keyStates->keySpacePressed = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_1)
+        keyStates->key1Pressed = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_2)
+        keyStates->key2Pressed = (action != GLFW_RELEASE);
 
 }
 
@@ -1274,18 +1282,26 @@ void addInstance(VkDevice device, VkPhysicalDevice physicalDevice, Transform tra
     // Reallocate instanceData with the new size
     *instanceData = realloc(*instanceData, bufferSize);
 
-    // Calculate the grid position for the new cube
-    int rows = floor(sqrt(*instanceCount));
-    int cols = ceil((float)*instanceCount / rows);
-    int row = (*instanceCount - 1) / cols;
-    int col = (*instanceCount - 1) % cols;
+    // Calculate the new cube's position in the grid
+    int rows = floor(sqrt(*instanceCount - 1)); // Rows of the complete grid before adding new cube
+    int cols = ceil((float)(*instanceCount - 1) / rows);
+    int newCubeIndex = *instanceCount - 1;
+    int newRow = newCubeIndex / cols;
+    int newCol = newCubeIndex % cols;
 
-    // Apply quantized transformation to the new cube
-    glm_mat4_identity((*instanceData)[*instanceCount - 1].model);
-    vec3 gridTranslation = {1.5f * col, 1.5f * row, 0.0f}; // Grid position
-    glm_translate((*instanceData)[*instanceCount - 1].model, gridTranslation);
-    vec3 additionalTranslation = {round(transform.translateX), round(transform.translateY), 0.0f}; // Quantized overall translation
-    glm_translate((*instanceData)[*instanceCount - 1].model, additionalTranslation);
+    // Check if a new row or column should start
+    if (newCol >= cols) {
+        newRow++;
+        newCol = 0;
+    }
+
+    // Apply grid transformation to the new cube
+    glm_mat4_identity((*instanceData)[newCubeIndex].model);
+    vec3 gridTranslation = {1.5f * newCol, 1.5f * newRow, 0.0f};
+    glm_translate((*instanceData)[newCubeIndex].model, gridTranslation);
+
+    vec3 additionalTranslation = {round(transform.translateX), round(transform.translateY), 0.0f};
+    glm_translate((*instanceData)[newCubeIndex].model, additionalTranslation);
 
     // Destroy old buffer and create a new one with updated size
     vkDeviceWaitIdle(device); // Wait for the device to be idle before destroying and reallocating
@@ -1306,6 +1322,21 @@ void removeInstance(InstanceData* instanceData, uint32_t* instanceCount, uint32_
         instanceData[instanceIndexToRemove] = instanceData[*instanceCount - 1];
     }
     *instanceCount -= 1; // Decrease the count of instances
+}
+
+void updateAllInstanceTransformations( InstanceData *instanceData, uint32_t instanceCount, float scale) {
+    for (uint32_t i = 0; i < instanceCount; ++i) {
+        // Apply only scaling to each instance's model matrix
+        // Assuming the translation is already set correctly in instanceData[i].model
+        glm_scale(instanceData[i].model, (vec3){scale, scale, scale});
+    }
+
+
+    // Update the Vulkan instance buffer
+    // void *data;
+    // vkMapMemory(device, *instanceBufferMemory, 0, sizeof(InstanceData) * instanceCount, 0, &data);
+    // memcpy(data, instanceData, sizeof(InstanceData) * instanceCount);
+    // vkUnmapMemory(device, *instanceBufferMemory);
 }
 
 void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore **imageAvailableSemaphores, VkSemaphore **renderFinishedSemaphores, VkFence **inFlightFences)
@@ -1496,6 +1527,9 @@ int main()
 
     // Main loop
     size_t currentFrame = 0;
+    
+    updateAllInstanceTransformations(instanceData, instanceCount, 1.2); // Update all instances
+
 
     while (!glfwWindowShouldClose(window))
     {
@@ -1506,8 +1540,10 @@ int main()
 
         double currentTime = glfwGetTime();
 
-        if (userData->keyStates.keyWPressed)
+        if (userData->keyStates.keyWPressed){
             transform.translateY += 0.01f;
+            transform.scale *= 1.2f; // Increase scale
+        }
         if (userData->keyStates.keySPressed)
             transform.translateY -= 0.01f;
         if (userData->keyStates.keyAPressed)
@@ -1520,6 +1556,12 @@ int main()
             
         if (userData->keyStates.keySpacePressed)
             addInstance(device, physicalDevice, transform, &instanceBuffer, &instanceBufferMemory, &instanceData, &instanceCount); // adds to instance count no need to do this elsewhere        
+
+        if (userData->keyStates.key1Pressed)
+            updateAllInstanceTransformations(instanceData, instanceCount, 1.02); // Update all instances
+
+        if (userData->keyStates.key2Pressed)
+            updateAllInstanceTransformations(instanceData, instanceCount, 0.98); // Update all instances
 
         applyFriction(&transform, 0.95f);
 
