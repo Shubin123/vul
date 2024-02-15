@@ -1,3 +1,6 @@
+#pragma once // need these structs in two c files (especially UserData)
+#include <GLFW/glfw3.h>
+
 typedef struct
 {
     float inPosition[3]; // Or use a vec3-like struct if you have one
