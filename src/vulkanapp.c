@@ -6,56 +6,8 @@
 #include <GLFW/glfw3.h>
 #include <cglm/cglm.h>
 
-typedef struct
-{
-    float inPosition[3]; // Or use a vec3-like struct if you have one
-} Vertex;
-
-typedef struct
-{
-    float time;
-    mat4 view;
-    mat4 projection;
-} UBO;
-
-typedef struct
-{
-    mat4 model;
-} InstanceData;
-
-typedef struct
-{
-    int keyWPressed;
-    int keyAPressed;
-    int keySPressed;
-    int keyDPressed;
-    int keySpacePressed;
-    int keyDeletePressed;
-    int key1Pressed;
-    int key2Pressed;
-} KeyStates;
-
-typedef struct
-{
-    GLFWwindow *handle;
-    int width;
-    int height;
-    bool wasResized;
-} WindowData;
-
-typedef struct
-{
-    WindowData windowData;
-    KeyStates keyStates;
-} UserData;
-
-typedef struct
-{
-    float translateX;
-    float translateY;
-    float scale; // Added scale factor
-    // Add more transformation fields as needed (e.g., translateZ, rotate, scale)
-} Transform;
+#include "mymath.c"
+#include "../include/structure.h"
 
 // ---helpers and printers and utilities---
 
@@ -195,7 +147,7 @@ UserData *createUserData(uint32_t windowWidth, uint32_t windowHeight)
     userData->keyStates.keyAPressed = false;
     userData->keyStates.keySPressed = false;
     userData->keyStates.keyDPressed = false;
-    
+
     userData->keyStates.keySpacePressed = false;
     userData->keyStates.keyDeletePressed = false;
 
@@ -243,7 +195,6 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
         keyStates->key1Pressed = (action != GLFW_RELEASE);
     if (key == GLFW_KEY_2)
         keyStates->key2Pressed = (action != GLFW_RELEASE);
-
 }
 
 void framebufferResizeCallback(GLFWwindow *window, int width, int height)
@@ -1270,12 +1221,13 @@ void createModelMatricesForGridArray(InstanceData *instanceData, uint32_t instan
         glm_mat4_identity(instanceData[i].model);
 
         // Set translation for each cube to create a grid
-        vec3 translation = {1.5f * col, 1.5f * row, 0.0f };
+        vec3 translation = {1.5f * col, 1.5f * row, 0.0f};
         glm_translate(instanceData[i].model, translation);
     }
 }
 
-void addInstance(VkDevice device, VkPhysicalDevice physicalDevice, Transform transform, VkBuffer *instanceBuffer, VkDeviceMemory *instanceBufferMemory, InstanceData **instanceData, uint32_t *instanceCount) {
+void addInstance(VkDevice device, VkPhysicalDevice physicalDevice, Transform transform, VkBuffer *instanceBuffer, VkDeviceMemory *instanceBufferMemory, InstanceData **instanceData, uint32_t *instanceCount)
+{
     *instanceCount += 1;
     int bufferSize = sizeof(InstanceData) * (*instanceCount);
 
@@ -1290,7 +1242,8 @@ void addInstance(VkDevice device, VkPhysicalDevice physicalDevice, Transform tra
     int newCol = newCubeIndex % cols;
 
     // Check if a new row or column should start
-    if (newCol >= cols) {
+    if (newCol >= cols)
+    {
         newRow++;
         newCol = 0;
     }
@@ -1316,16 +1269,20 @@ void addInstance(VkDevice device, VkPhysicalDevice physicalDevice, Transform tra
     vkUnmapMemory(device, *instanceBufferMemory);
 }
 
-void removeInstance(InstanceData* instanceData, uint32_t* instanceCount, uint32_t instanceIndexToRemove) {
-    if (instanceIndexToRemove < *instanceCount - 1) {
+void removeInstance(InstanceData *instanceData, uint32_t *instanceCount, uint32_t instanceIndexToRemove)
+{
+    if (instanceIndexToRemove < *instanceCount - 1)
+    {
         // Replace the removed instance with the last one (optional)
         instanceData[instanceIndexToRemove] = instanceData[*instanceCount - 1];
     }
     *instanceCount -= 1; // Decrease the count of instances
 }
 
-void updateAllInstanceTransformations( InstanceData *instanceData, uint32_t instanceCount, float scale) {
-    for (uint32_t i = 0; i < instanceCount; ++i) {
+void updateAllInstanceTransformations(InstanceData *instanceData, uint32_t instanceCount, float scale)
+{
+    for (uint32_t i = 0; i < instanceCount; ++i)
+    {
         glm_scale(instanceData[i].model, (vec3){scale, scale, scale});
     }
 }
@@ -1356,23 +1313,23 @@ void createSyncObjects(VkDevice device, uint32_t maxFramesInFlight, VkSemaphore 
     }
 }
 
-// CGLM
+// // CGLM
 
-void createModelMatrix(mat4 *modelMatrix)
-{
-    glm_mat4_identity(*modelMatrix);
-}
+// void createModelMatrix(mat4 *modelMatrix)
+// {
+//     glm_mat4_identity(*modelMatrix);
+// }
 
-void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 cameraUp)
-{
-    glm_lookat(cameraPos, cameraTarget, cameraUp, viewMatrix);
-}
+// void createViewMatrix(mat4 viewMatrix, vec3 cameraPos, vec3 cameraTarget, vec3 cameraUp)
+// {
+//     glm_lookat(cameraPos, cameraTarget, cameraUp, viewMatrix);
+// }
 
-void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio, float nearPlane, float farPlane)
-{
-    glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projectionMatrix);
-    projectionMatrix[1][1] *= -1; // Flip the Y axis this needs to be done again when screen is resized
-}
+// void createProjectionMatrix(mat4 projectionMatrix, float fov, float aspectRatio, float nearPlane, float farPlane)
+// {
+//     glm_perspective(glm_rad(fov), aspectRatio, nearPlane, farPlane, projectionMatrix);
+//     projectionMatrix[1][1] *= -1; // Flip the Y axis this needs to be done again when screen is resized
+// }
 
 void applyFriction(Transform *transform, float frictionFactor)
 {
@@ -1472,7 +1429,7 @@ int main()
     createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
 
     // semaphore, fence and sync objects
-    const int MAX_FRAMES_IN_FLIGHT = 3; // 3 for full triple buffering potential
+    const int MAX_FRAMES_IN_FLIGHT = 1; // 3 for full triple buffering potential
     VkSemaphore *imageAvailableSemaphores;
     VkSemaphore *renderFinishedSemaphores;
     VkFence *inFlightFences;
@@ -1481,7 +1438,7 @@ int main()
 
     // projection setup
     // Example of camera parameters
-    vec3 cameraPos = {0.0f, 0.0f, 10.0f};    // Camera position
+    vec3 cameraPos = {0.0f, 0.0f, 7.0f};    // Camera position (max render distance is 10)
     vec3 cameraTarget = {0.0f, 0.0f, 0.0f}; // Camera target
     vec3 up = {0.0f, 1.0f, 0.0f};           // Up direction
 
@@ -1516,11 +1473,12 @@ int main()
         .translateX = 0.0f,
         .translateY = 0.0f};
 
-    // Main loop
-    size_t currentFrame = 0;
-    
-    updateAllInstanceTransformations(instanceData, instanceCount, 1.2); // Update all instances
+    // calc fps
+    double lastTime = glfwGetTime();
+    int numFrames = 0;
 
+    // Main loop
+    size_t currentFrame = 0; // used for buffer synchronization
 
     while (!glfwWindowShouldClose(window))
     {
@@ -1530,8 +1488,16 @@ int main()
         // printf("Resized to %d, %d\n", userData->windowData.width, userData->windowData.height);
 
         double currentTime = glfwGetTime();
+        numFrames++;
+        if (currentTime - lastTime >= 1.0)
+        { // If last print was more than 1 sec ago
+            printf("%f ms/frame, %d frames/sec\n", 1000.0 / numFrames, numFrames);
+            numFrames = 0;
+            lastTime += 1.0;
+        }
 
-        if (userData->keyStates.keyWPressed){
+        if (userData->keyStates.keyWPressed)
+        {
             transform.translateY += 0.01f;
             transform.scale *= 1.2f; // Increase scale
         }
@@ -1544,9 +1510,9 @@ int main()
         if (userData->keyStates.keyDeletePressed)
             if (instanceCount > 1) // must have atleast one instance
                 removeInstance(instanceData, &instanceCount, instanceCount - 1);
-            
+
         if (userData->keyStates.keySpacePressed)
-            addInstance(device, physicalDevice, transform, &instanceBuffer, &instanceBufferMemory, &instanceData, &instanceCount); // adds to instance count no need to do this elsewhere        
+            addInstance(device, physicalDevice, transform, &instanceBuffer, &instanceBufferMemory, &instanceData, &instanceCount); // adds to instance count no need to do this elsewhere
 
         if (userData->keyStates.key1Pressed)
             updateAllInstanceTransformations(instanceData, instanceCount, 1.02); // Update all instances
@@ -1562,7 +1528,6 @@ int main()
         {
             glm_translate(instanceData[i].model, translation);
         }
-
 
         // 0. Wait for the previous frame to finish
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);

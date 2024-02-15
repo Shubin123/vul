@@ -5,12 +5,12 @@ APPFLAGS = -L./ships -rpath @executable_path/ships -lpthread -lvulkan -lglfw -lM
 WARNINGS = -Wall -Wextra -Wpedantic -Werror
 
 #app is dynamically linked with libaries in ./ships
-vulkanapp: vulkanapp.c
-	$(CC) $(CFLAGS) -o vulkanapp vulkanapp.c $(WARNINGS) $(APPFLAGS)
+vulkanapp: ./src/vulkanapp.c
+	$(CC) $(CFLAGS) -o vulkanapp ./src/vulkanapp.c $(WARNINGS) $(APPFLAGS)
 
 #app is dynamically linked through the system (brew for me) and vulkan sdk
-vulkan: vulkanapp.c
-	$(CC) $(CFLAGS) -o vulkantest vulkanapp.c $(LDFLAGS)
+vulkan: ./src/ulkanapp.c
+	$(CC) $(CFLAGS) -o vulkantest ./src/vulkanapp.c $(LDFLAGS)
 
 #tests
 test: tests/test.c
