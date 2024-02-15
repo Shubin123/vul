@@ -19,8 +19,8 @@ int main()
 {
 
     // initialization/creation process to the end:
-    // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => ubo initialization / descriptor setting  => graphics_pipeline =>  frame_buffers => command_buffers => command_pool => vertex_buffer => sync_objects => index_buffer => main_loop => cleanup
-    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, ubo, graphics pipeline, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mainloop, clean up
+    // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => ubo initialization / descriptor setting  => graphics_pipeline =>  frame_buffers => command_buffers => command_pool => vertex_buffer => instace_buffer => sync_objects => instance buffer (model matrices) => view_buffer => projection_buffer => index_buffer =>  main_loop => cleanup
+    // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, ubo, graphics pipeline, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mvp, mainloop, clean up
 
     setenv("MVK_CONFIG_LOG_LEVEL", "3", 1); // 1 means overwrite existing value
     setenv("MVK_DEBUG", "2", 1);
