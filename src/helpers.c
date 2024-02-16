@@ -7,6 +7,39 @@
 
 #include "../include/structure.h"
 
+void createCubeVertexData(const Vertex **vertices, uint32_t *vertexCount) {
+       static const Vertex cubeVertices[] = {
+        // Front face
+        {{-0.5f, -0.5f, 0.5f}}, // Vertex 0
+        {{0.5f, -0.5f, 0.5f}},  // Vertex 1
+        {{0.5f, 0.5f, 0.5f}},   // Vertex 2
+        {{-0.5f, 0.5f, 0.5f}},  // Vertex 3
+
+        // Back face
+        {{-0.5f, -0.5f, -0.5f}}, // Vertex 4
+        {{0.5f, -0.5f, -0.5f}},  // Vertex 5
+        {{0.5f, 0.5f, -0.5f}},   // Vertex 6
+        {{-0.5f, 0.5f, -0.5f}},  // Vertex 7
+    };
+    *vertexCount = sizeof(cubeVertices) / sizeof(cubeVertices[0]);
+    *vertices = cubeVertices;
+}
+
+void createCubeIndexData(const uint16_t **indices, uint32_t *indexCount) {
+      static const uint16_t cubeIndices[] = {
+        0, 1, 2, 2, 3, 0, // Front face
+        1, 5, 6, 6, 2, 1, // Right face
+        5, 4, 7, 7, 6, 5, // Back face
+        4, 0, 3, 3, 7, 4, // Left face
+        3, 2, 6, 6, 7, 3, // Top face
+        0, 1, 5, 5, 4, 0  // Bottom face
+    };
+
+    *indices = cubeIndices;
+    *indexCount = sizeof(cubeIndices) / sizeof(cubeIndices[0]);
+    
+}
+
 void enumerateVulkanExtensions()
 {
     uint32_t extensionCount = 0;

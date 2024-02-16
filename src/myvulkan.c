@@ -539,7 +539,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, V
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; // cull (efficient but may lead to render bugs)
+    // rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; // cull (efficient but may lead to render bugs)
     rasterizer.cullMode = VK_CULL_MODE_NONE;     // to disable culling/
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
@@ -905,7 +905,7 @@ void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize
     vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
 }
 
-void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
+void createVertexBufferOLD(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
 {
     const Vertex vertices[] = {
         // Front face
@@ -931,7 +931,7 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuff
     copyDataToDeviceMemory(device, *vertexBufferMemory, vertices, vertexBufferSize);
 }
 
-void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint32_t *indexCount)
+void createIndexBufferOLD(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint32_t *indexCount)
 {
 
     const uint16_t indices[] = {
@@ -965,6 +965,22 @@ void createInstanceBuffer(VkDevice device, VkPhysicalDevice physicalDevice, Inst
     vkMapMemory(device, *instanceBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, instanceData, (size_t)bufferSize);
     vkUnmapMemory(device, *instanceBufferMemory);
+}
+
+void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, const Vertex *vertices, uint32_t vertexCount, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory) {
+    VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertexCount;
+
+    createBuffer(device, physicalDevice, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
+
+    copyDataToDeviceMemory(device, *vertexBufferMemory, vertices, vertexBufferSize);
+}
+
+void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, const uint16_t *indices, uint32_t indexCount, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory) {
+    VkDeviceSize indexBufferSize = sizeof(uint16_t) * indexCount;
+
+    createBuffer(device, physicalDevice, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
+
+    copyDataToDeviceMemory(device, *indexBufferMemory, indices, indexBufferSize);
 }
 
 void createModelMatricesForGridArray(InstanceData *instanceData, uint32_t instanceCount)

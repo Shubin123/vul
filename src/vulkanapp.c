@@ -9,9 +9,10 @@
 
 #include "myvulkan.c"
 #include "mymath.c"
-#include "myglfw.c"
+#include "myglfw.c" 
+#include "mygltf.c"
 #include "helpers.c"
-#include "../include/structure.h"
+#include "../include/structure.h" 
 
 
 
@@ -88,16 +89,26 @@ int main()
     VkCommandPool commandPool = createCommandPool(device, graphicsQueueFamilyIndex);
     VkCommandBuffer *commandBuffers = allocateCommandBuffers(device, commandPool, swapChainImageCount);
 
-    // vertex buffers, index buffers
-    VkBuffer vertexBuffer, indexBuffer;
-    VkDeviceMemory vertexBufferMemory, indexBufferMemory;
-    uint32_t indexCount;
+    // vertex buffers, index buffers -- FOR CUBES --
+const Vertex *cubeVertices;
+uint32_t vertexCount;
+createCubeVertexData(&cubeVertices, &vertexCount);
 
-    createIndexBuffer(device, physicalDevice, &indexBuffer, &indexBufferMemory, &indexCount);
-    createVertexBuffer(device, physicalDevice, &vertexBuffer, &vertexBufferMemory);
+const uint16_t *cubeIndices;
+uint32_t indexCount;
+createCubeIndexData(&cubeIndices, &indexCount);
+
+VkBuffer vertexBuffer, indexBuffer;
+VkDeviceMemory vertexBufferMemory, indexBufferMemory;
+
+createVertexBuffer(device, physicalDevice, cubeVertices, vertexCount, &vertexBuffer, &vertexBufferMemory);
+createIndexBuffer(device, physicalDevice, cubeIndices, indexCount, &indexBuffer, &indexBufferMemory);
+
+
+
 
     // semaphore, fence and sync objects
-    const int MAX_FRAMES_IN_FLIGHT = 1; // 3 for full triple buffering potential
+    const int MAX_FRAMES_IN_FLIGHT = 3; // 3 for full triple buffering potential
     VkSemaphore *imageAvailableSemaphores;
     VkSemaphore *renderFinishedSemaphores;
     VkFence *inFlightFences;
@@ -115,7 +126,7 @@ int main()
     // Create an instance buffer
     VkBuffer instanceBuffer;
     VkDeviceMemory instanceBufferMemory;
-    uint32_t instanceCount = 5;
+    uint32_t instanceCount = 6;
 
     InstanceData *instanceData = malloc(sizeof(InstanceData) * instanceCount);
 
@@ -142,8 +153,8 @@ int main()
         .translateY = 0.0f};
 
     // calc fps
-    double lastTime = glfwGetTime();
-    int numFrames = 0;
+    // double lastTime = glfwGetTime();
+    // int numFrames = 0;
 
     // Main loop
     size_t currentFrame = 0; // used for buffer synchronization
@@ -153,16 +164,17 @@ int main()
 
         glfwPollEvents(); // poll early for early inputs (like key presses) before render process. this may make the user experience better
 
-        // printf("Resized to %d, %d\n", userData->windowData.width, userData->windowData.height);
 
         double currentTime = glfwGetTime();
-        numFrames++;
-        if (currentTime - lastTime >= 1.0)
-        { // If last print was more than 1 sec ago
-            printf("%f ms/frame, %d frames/sec\n", 1000.0 / numFrames, numFrames);
-            numFrames = 0;
-            lastTime += 1.0;
-        }
+        
+        // framecounter move this to helpers.c
+        // numFrames++;
+        // if (currentTime - lastTime >= 1.0)
+        // { // If last print was more than 1 sec ago
+        //     printf("%f ms/frame, %d frames/sec\n", 1000.0 / numFrames, numFrames);
+        //     numFrames = 0;
+        //     lastTime += 1.0;
+        // }
 
         if (userData->keyStates.keyWPressed)
         {
