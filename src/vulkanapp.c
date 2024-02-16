@@ -91,18 +91,18 @@ int main()
 
     // vertex buffers, index buffers -- FOR CUBES --
 const Vertex *cubeVertices;
-uint32_t vertexCount;
-createCubeVertexData(&cubeVertices, &vertexCount);
+uint32_t cubeVertexCount;
+createCubeVertexData(&cubeVertices, &cubeVertexCount);
 
 const uint16_t *cubeIndices;
-uint32_t indexCount;
-createCubeIndexData(&cubeIndices, &indexCount);
+uint32_t cubeIndexCount;
+createCubeIndexData(&cubeIndices, &cubeIndexCount);
 
-VkBuffer vertexBuffer, indexBuffer;
-VkDeviceMemory vertexBufferMemory, indexBufferMemory;
+VkBuffer cubeVertexBuffer, cubeIndexBuffer;
+VkDeviceMemory cubeVertexBufferMemory, cubeIndexBufferMemory;
 
-createVertexBuffer(device, physicalDevice, cubeVertices, vertexCount, &vertexBuffer, &vertexBufferMemory);
-createIndexBuffer(device, physicalDevice, cubeIndices, indexCount, &indexBuffer, &indexBufferMemory);
+createVertexBuffer(device, physicalDevice, cubeVertices, cubeVertexCount, &cubeVertexBuffer, &cubeVertexBufferMemory);
+createIndexBuffer(device, physicalDevice, cubeIndices, cubeIndexCount, &cubeIndexBuffer, &cubeIndexBufferMemory);
 
 
 
@@ -223,7 +223,7 @@ createIndexBuffer(device, physicalDevice, cubeIndices, indexCount, &indexBuffer,
 
         updateInstanceBuffer(device, instanceBufferMemory, instanceData, instanceCount);
 
-        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, vertexBuffer, indexBuffer, instanceBuffer, indexCount, instanceCount, descriptorSets, pipelineLayout);
+        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, cubeVertexBuffer, cubeIndexBuffer, instanceBuffer, cubeIndexCount, instanceCount, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer
         VkSubmitInfo submitInfo = {0};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -299,10 +299,10 @@ createIndexBuffer(device, physicalDevice, cubeIndices, indexCount, &indexBuffer,
     free(swapChainFramebuffers);
 
     // Cleanup: Vertex and Index Buffer and its associated memory
-    vkDestroyBuffer(device, vertexBuffer, NULL);
-    vkDestroyBuffer(device, indexBuffer, NULL);
-    vkFreeMemory(device, indexBufferMemory, NULL);
-    vkFreeMemory(device, vertexBufferMemory, NULL);
+    vkDestroyBuffer(device, cubeVertexBuffer, NULL);
+    vkDestroyBuffer(device, cubeIndexBuffer, NULL);
+    vkFreeMemory(device, cubeIndexBufferMemory, NULL);
+    vkFreeMemory(device, cubeVertexBufferMemory, NULL);
 
     // Cleanup: Shader Modules, Pipeline, Render Pass, Image Views, Swap Chain
     free(vertexShaderCode);

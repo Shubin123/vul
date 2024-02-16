@@ -1,5 +1,8 @@
+#include <vulkan/vulkan.h>
+
 #define CGLTF_IMPLEMENTATION
 #include "../include/cgltf.h" //get ready for binary to explode in size
+
 
 // borrows from myvulkan.c create index/vertex buffers cause thats where the api is called
 int gltfLoad() {
