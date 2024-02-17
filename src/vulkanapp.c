@@ -9,12 +9,10 @@
 
 #include "myvulkan.c"
 #include "mymath.c"
-#include "myglfw.c" 
+#include "myglfw.c"
 #include "mygltf.c"
 #include "helpers.c"
-#include "../include/structure.h" 
-
-
+#include "../include/structure.h"
 
 int main()
 {
@@ -23,8 +21,8 @@ int main()
     // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => ubo initialization / descriptor setting  => graphics_pipeline =>  frame_buffers => command_buffers => command_pool => vertex_buffer => instace_buffer => sync_objects => instance buffer (model matrices) => view_buffer => projection_buffer => index_buffer =>  main_loop => cleanup
     // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, ubo, graphics pipeline, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mvp, mainloop, clean up
 
-    setenv("MVK_CONFIG_LOG_LEVEL", "3", 1); // 1 means overwrite existing value
-    setenv("MVK_DEBUG", "2", 1);
+    setenv("MVK_CONFIG_LOG_LEVEL", "1", 1);
+    setenv("MVK_DEBUG", "1", 1);
     uint32_t initialWindowWidth = 800;
     uint32_t initialWindowHeight = 600;
 
@@ -90,23 +88,27 @@ int main()
     VkCommandBuffer *commandBuffers = allocateCommandBuffers(device, commandPool, swapChainImageCount);
 
     // vertex buffers, index buffers -- FOR CUBES --
-const Vertex *cubeVertices;
-uint32_t cubeVertexCount;
-createCubeVertexData(&cubeVertices, &cubeVertexCount);
+    const Vertex *cubeVertices;
+    uint32_t cubeVertexCount;
+    createCubeVertexData(&cubeVertices, &cubeVertexCount);
 
-const uint16_t *cubeIndices;
-uint32_t cubeIndexCount;
-createCubeIndexData(&cubeIndices, &cubeIndexCount);
+    const uint16_t *cubeIndices;
+    uint32_t cubeIndexCount; //needs for recordCommandBuffers
+    createCubeIndexData(&cubeIndices, &cubeIndexCount);
 
-VkBuffer cubeVertexBuffer, cubeIndexBuffer;
-VkDeviceMemory cubeVertexBufferMemory, cubeIndexBufferMemory;
+    VkBuffer cubeVertexBuffer, cubeIndexBuffer;
+    VkDeviceMemory cubeVertexBufferMemory, cubeIndexBufferMemory;
 
-createVertexBuffer(device, physicalDevice, cubeVertices, cubeVertexCount, &cubeVertexBuffer, &cubeVertexBufferMemory);
-createIndexBuffer(device, physicalDevice, cubeIndices, cubeIndexCount, &cubeIndexBuffer, &cubeIndexBufferMemory);
+    createVertexBuffer(device, physicalDevice, cubeVertices, cubeVertexCount, &cubeVertexBuffer, &cubeVertexBufferMemory);
+    createIndexBuffer(device, physicalDevice, cubeIndices, cubeIndexCount, &cubeIndexBuffer, &cubeIndexBufferMemory);
 
-
-
-
+    // vertex buffers, index buffers -- FOR GLTF MODELS --
+    
+    VkBuffer gltfVertexBuffer, gltfIndexBuffer;
+    VkDeviceMemory gltfIndexBufferMemory, gltfVertexBufferMemory;
+    uint32_t gltfIndexCount = loadGltfMeshes("./gltfs/testScene.gltf", device, physicalDevice, &gltfVertexBuffer, &gltfVertexBufferMemory, &gltfIndexBuffer, &gltfIndexBufferMemory);
+    printf("gltf index count: %u\n", gltfIndexCount);
+    
     // semaphore, fence and sync objects
     const int MAX_FRAMES_IN_FLIGHT = 3; // 3 for full triple buffering potential
     VkSemaphore *imageAvailableSemaphores;
@@ -126,7 +128,7 @@ createIndexBuffer(device, physicalDevice, cubeIndices, cubeIndexCount, &cubeInde
     // Create an instance buffer
     VkBuffer instanceBuffer;
     VkDeviceMemory instanceBufferMemory;
-    uint32_t instanceCount = 6;
+    uint32_t instanceCount = 1;
 
     InstanceData *instanceData = malloc(sizeof(InstanceData) * instanceCount);
 
@@ -164,9 +166,8 @@ createIndexBuffer(device, physicalDevice, cubeIndices, cubeIndexCount, &cubeInde
 
         glfwPollEvents(); // poll early for early inputs (like key presses) before render process. this may make the user experience better
 
-
         double currentTime = glfwGetTime();
-        
+
         // framecounter move this to helpers.c
         // numFrames++;
         // if (currentTime - lastTime >= 1.0)
@@ -223,7 +224,7 @@ createIndexBuffer(device, physicalDevice, cubeIndices, cubeIndexCount, &cubeInde
 
         updateInstanceBuffer(device, instanceBufferMemory, instanceData, instanceCount);
 
-        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, cubeVertexBuffer, cubeIndexBuffer, instanceBuffer, cubeIndexCount, instanceCount, descriptorSets, pipelineLayout);
+        recordCommandBuffers(commandBuffers, imageIndex, renderPass, swapChainExtent, swapChainFramebuffers, graphicsPipeline, gltfVertexBuffer, gltfIndexBuffer, instanceBuffer, gltfIndexCount, instanceCount, descriptorSets, pipelineLayout);
         // 2. Submit the command buffer
         VkSubmitInfo submitInfo = {0};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -303,6 +304,12 @@ createIndexBuffer(device, physicalDevice, cubeIndices, cubeIndexCount, &cubeInde
     vkDestroyBuffer(device, cubeIndexBuffer, NULL);
     vkFreeMemory(device, cubeIndexBufferMemory, NULL);
     vkFreeMemory(device, cubeVertexBufferMemory, NULL);
+
+    vkDestroyBuffer(device, gltfVertexBuffer, NULL);
+    vkFreeMemory(device, gltfVertexBufferMemory, NULL);
+    vkDestroyBuffer(device, gltfIndexBuffer, NULL);
+    vkFreeMemory(device, gltfIndexBufferMemory, NULL);
+    
 
     // Cleanup: Shader Modules, Pipeline, Render Pass, Image Views, Swap Chain
     free(vertexShaderCode);

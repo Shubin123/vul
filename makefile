@@ -35,4 +35,4 @@ shaders/fragment_shader.spv: shaders/fragment_shader.glsl
 .PHONY: shaders
 
 clean:
-	rm -f vulkanapp vulkantest test test2 test3
+	rm -f vulkanapp vulkantest test test2 test3 test4

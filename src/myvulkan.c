@@ -905,53 +905,6 @@ void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize
     vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
 }
 
-void createVertexBufferOLD(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory)
-{
-    const Vertex vertices[] = {
-        // Front face
-        {{-0.5f, -0.5f, 0.5f}}, // Vertex 0
-        {{0.5f, -0.5f, 0.5f}},  // Vertex 1
-        {{0.5f, 0.5f, 0.5f}},   // Vertex 2
-        {{-0.5f, 0.5f, 0.5f}},  // Vertex 3
-
-        // Back face
-        {{-0.5f, -0.5f, -0.5f}}, // Vertex 4
-        {{0.5f, -0.5f, -0.5f}},  // Vertex 5
-        {{0.5f, 0.5f, -0.5f}},   // Vertex 6
-        {{-0.5f, 0.5f, -0.5f}},  // Vertex 7
-    };
-
-    const uint32_t vertexCount = sizeof(vertices) / sizeof(vertices[0]);
-    VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertexCount;
-
-    // Create vertex buffer
-    createBuffer(device, physicalDevice, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
-
-    // Copy vertex data to vertex buffer
-    copyDataToDeviceMemory(device, *vertexBufferMemory, vertices, vertexBufferSize);
-}
-
-void createIndexBufferOLD(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint32_t *indexCount)
-{
-
-    const uint16_t indices[] = {
-        0, 1, 2, 2, 3, 0, // Front face
-        1, 5, 6, 6, 2, 1, // Right face
-        5, 4, 7, 7, 6, 5, // Back face
-        4, 0, 3, 3, 7, 4, // Left face
-        3, 2, 6, 6, 7, 3, // Top face
-        0, 1, 5, 5, 4, 0  // Bottom face
-    };
-
-    *indexCount = sizeof(indices) / sizeof(indices[0]);
-    VkDeviceSize indexBufferSize = sizeof(uint16_t) * (*indexCount);
-
-    // Create index buffer
-    createBuffer(device, physicalDevice, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
-
-    // Copy index data to index buffer
-    copyDataToDeviceMemory(device, *indexBufferMemory, indices, indexBufferSize);
-}
 
 void createInstanceBuffer(VkDevice device, VkPhysicalDevice physicalDevice, InstanceData *instanceData, uint32_t instanceCount, VkBuffer *instanceBuffer, VkDeviceMemory *instanceBufferMemory)
 {
