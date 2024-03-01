@@ -1,5 +1,6 @@
 #pragma once // need these structs in two c files (especially UserData)
 #include <GLFW/glfw3.h>
+#include <cglm/cglm.h>
 
 typedef struct
 {

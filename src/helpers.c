@@ -179,8 +179,20 @@ UserData *createUserData(uint32_t windowWidth, uint32_t windowHeight)
 
     userData->keyStates.keySpacePressed = false;
     userData->keyStates.keyDeletePressed = false;
-
+    userData->keyStates.key1Pressed = false;
+    userData->keyStates.key2Pressed = false;
     // Initialize other fields of userData as necessary...
 
     return userData;
+}
+
+void printFPS(int *numFrames, double* lastTime, double currentTime){
+    *numFrames += 1;
+       if (currentTime - *lastTime >= 1.0)
+       { // If last print was more than 1 sec ago
+            printf("%f ms/frame, %d frames/sec\n", 1000.0 / *numFrames, *numFrames);
+            *numFrames = 0;
+            *lastTime += 1;
+        }
+    // printf("lasttime %f\n", *lastTime);
 }
