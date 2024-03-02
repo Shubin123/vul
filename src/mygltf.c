@@ -4,6 +4,7 @@
 
 #define CGLTF_IMPLEMENTATION
 #include "../include/cgltf.h" //get ready for binary to explode in size
+#include "helpers.c"
 
 // borrows from myvulkan.c create index/vertex buffers cause thats where the api is called
 void gltfLoad()
@@ -68,7 +69,10 @@ printf("positionAccessor->buffer_view->buffer->data: %s\n", (char *)positionAcce
     for (size_t i = 0; i < *outVertexCount; i++)
     {
         const float *position = (const float *)cgltf_accessor_read_index(positionAccessor, i);
-        if (position)
+        
+
+
+        if (position != NULL)
         {
             (*outVertices)[i].inPosition[0] = position[0];
             (*outVertices)[i].inPosition[1] = position[1];

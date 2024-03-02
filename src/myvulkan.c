@@ -83,6 +83,87 @@ VkInstance createVulkanInstance()
     return instance;
 }
 
+
+VkInstance createVulkanInstanceWIN64()
+{
+    VkInstance instance;
+
+    if (!checkValidationLayerSupport())
+    {
+        fprintf(stderr, "Validation layers requested, but not available!\n");
+        enumerateVulkanLayers();
+        exit(EXIT_FAILURE);
+    }
+
+    // Get required GLFW extensions
+    uint32_t glfwExtensionCount = 0;
+    const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    // Calculate total number of extensions (GLFW extensions + 3 additional)
+    uint32_t totalExtensionCount = glfwExtensionCount + 14; // set to 14 for all other available extensions and 3 for the known neccessary
+    const char** extensions = malloc(totalExtensionCount * sizeof(char*));
+    memcpy(extensions, glfwExtensions, glfwExtensionCount * sizeof(char*));
+
+    // Add VK_KHR_surface and VK_MVK_macos_surface extensions
+    extensions[glfwExtensionCount] = "VK_KHR_portability_enumeration";
+    extensions[glfwExtensionCount + 1] = "VK_KHR_surface";
+    //extensions[glfwExtensionCount + 2] = "VK_MVK_macos_surface";
+    extensions[glfwExtensionCount + 2] = "VK_KHR_win32_surface";
+
+    // the rest of these i dunno if we need
+    extensions[glfwExtensionCount + 3] = "VK_KHR_device_group_creation";
+    extensions[glfwExtensionCount + 4] = "VK_KHR_external_fence_capabilities";
+    extensions[glfwExtensionCount + 5] = "VK_KHR_external_memory_capabilities";
+    extensions[glfwExtensionCount + 6] = "VK_KHR_external_semaphore_capabilities";
+    extensions[glfwExtensionCount + 7] = "VK_KHR_get_physical_device_properties2";
+    extensions[glfwExtensionCount + 8] = "VK_KHR_get_surface_capabilities2";
+
+    extensions[glfwExtensionCount + 9] = "VK_EXT_debug_report";
+    extensions[glfwExtensionCount + 10] = "VK_EXT_debug_utils";
+
+    //extensions[glfwExtensionCount + 11] = "VK_EXT_headless_surface";
+    //extensions[glfwExtensionCount + 12] = "VK_EXT_layer_settings";
+    //extensions[glfwExtensionCount + 13] = "VK_EXT_metal_surface";
+    extensions[glfwExtensionCount + 11] = "VK_EXT_surface_maintenance1";
+    extensions[glfwExtensionCount + 12] = "VK_EXT_swapchain_colorspace";
+    extensions[glfwExtensionCount + 13] = "VK_LUNARG_direct_driver_loading";
+
+    // Set up Vulkan application info
+    VkApplicationInfo appInfo = { 0 };
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pApplicationName = "Hello Vulkan";
+    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.pEngineName = "No Engine";
+    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.apiVersion = VK_API_VERSION_1_2;
+
+    // Create Vulkan instance
+    VkInstanceCreateInfo createInfo = { 0 };
+    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    createInfo.pApplicationInfo = &appInfo;
+    createInfo.enabledExtensionCount = totalExtensionCount;
+    createInfo.ppEnabledExtensionNames = extensions;
+    createInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+
+    // Enable validation layers
+    const char* validationLayers[] = { "VK_LAYER_KHRONOS_validation" };
+    createInfo.enabledLayerCount = sizeof(validationLayers) / sizeof(validationLayers[0]);
+    createInfo.ppEnabledLayerNames = validationLayers;
+
+    createInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+
+    if (vkCreateInstance(&createInfo, NULL, &instance) != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to create Vulkan instance\n");
+        free(extensions); // Free the allocated memory for extensions
+        exit(EXIT_FAILURE);
+    }
+
+
+    free(extensions); // Free the allocated memory for extensions
+
+    return instance;
+}
+
 VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow *window)
 {
     VkSurfaceKHR surface;
@@ -188,7 +269,8 @@ VkDevice createLogicalDevice(VkPhysicalDevice physicalDevice, uint32_t graphicsQ
     createInfo.pEnabledFeatures = &deviceFeatures;
 
     // If you're using specific device extensions (like for swap chains), list them here
-    const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset"}; // similar VK_KHR_portability_enumeration something for non-native(windows)
+    // const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset"};
+    const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME}; // for windows
     createInfo.enabledExtensionCount = sizeof(deviceExtensions) / sizeof(deviceExtensions[0]);
     createInfo.ppEnabledExtensionNames = deviceExtensions;
 

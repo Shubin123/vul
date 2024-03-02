@@ -5,7 +5,7 @@ int main()
 {
     cgltf_options options = {0};
     cgltf_data *data = NULL;
-    cgltf_result result = cgltf_parse_file(&options, "./gltfs/scene.gltf", &data);
+    cgltf_result result = cgltf_parse_file(&options, "./gltfs/testScene.gltf", &data);
 
     if (result == cgltf_result_success)
     {

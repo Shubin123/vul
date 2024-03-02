@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-// #include <vulkan/vulkan.h>
+//#include <vulkan/vulkan.h>
 // #include <GLFW/glfw3.h>
 // #include <cglm/cglm.h>
 
@@ -21,8 +21,8 @@ int main()
     // initialize_window => vulkan_instance => vulkan_surface => physical_device => find_graphics_queue_family_index (not really init/creation) => logical_device => choose_swap_surface_format (not really init/creation) => swap_chain => image_views => render_pass => load shaders (frag+vert) (not really init) => ubo initialization / descriptor setting  => graphics_pipeline =>  frame_buffers => command_buffers => command_pool => vertex_buffer => instace_buffer => sync_objects => instance buffer (model matrices) => view_buffer => projection_buffer => index_buffer =>  main_loop => cleanup
     // tdlr: window, Vulkan instance, physical device, logical device, swap chain, image views, render pass, ubo, graphics pipeline, frame buffer, command pool, command buffer, vertex buffer, index buffer, sync object, mvp, mainloop, clean up
 
-    setenv("MVK_CONFIG_LOG_LEVEL", "1", 1);
-    setenv("MVK_DEBUG", "1", 1);
+    //setenv("MVK_CONFIG_LOG_LEVEL", "1", 1);
+    //setenv("MVK_DEBUG", "1", 1);
     uint32_t initialWindowWidth = 800;
     uint32_t initialWindowHeight = 600;
 
@@ -40,7 +40,8 @@ int main()
 
     GLFWwindow *window = createWindow(initialWindowWidth, initialWindowHeight);
 
-    VkInstance instance = createVulkanInstance();
+// we are creating the vulkan instance for windows os with its associated extensions
+    VkInstance instance = createVulkanInstanceWIN64();
 
     VkSurfaceKHR surface = createSurface(instance, window);
 
@@ -68,8 +69,8 @@ int main()
 
     // Unified buffer object setup (do not mistake the uniform buffer with the vertex buffer and the layout descriptor with the attribute and binding descriptor)
 
-    VkBuffer uniformBuffers[swapChainImageCount];
-    VkDeviceMemory uniformBufferMemory[swapChainImageCount]; // created as an array but used in update as an item of said array
+    VkBuffer uniformBuffers[10000];
+    VkDeviceMemory uniformBufferMemory[10000]; // created as an array but used in update as an item of said array
     createUniformBuffers(device, physicalDevice, swapChainImageCount, uniformBuffers, uniformBufferMemory);
 
     VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(device);
@@ -107,7 +108,6 @@ int main()
     VkBuffer gltfVertexBuffer, gltfIndexBuffer;
     VkDeviceMemory gltfIndexBufferMemory, gltfVertexBufferMemory;
     uint32_t gltfIndexCount = loadGltfMeshes("./gltfs/testScene.gltf", device, physicalDevice, &gltfVertexBuffer, &gltfVertexBufferMemory, &gltfIndexBuffer, &gltfIndexBufferMemory);
-    printf("gltf index count: %u\n", gltfIndexCount);
     
     // semaphore, fence and sync objects
     const int MAX_FRAMES_IN_FLIGHT = 3; // 3 for full triple buffering potential
@@ -155,8 +155,8 @@ int main()
         .translateY = 0.0f};
 
     // calc fps
-    // double lastTime = glfwGetTime();
-    // int numFrames = 0;
+    double lastTime = glfwGetTime();
+    int numFrames;
 
     // Main loop
     size_t currentFrame = 0; // used for buffer synchronization
@@ -168,14 +168,9 @@ int main()
 
         double currentTime = glfwGetTime();
 
-        // framecounter move this to helpers.c
-        // numFrames++;
-        // if (currentTime - lastTime >= 1.0)
-        // { // If last print was more than 1 sec ago
-        //     printf("%f ms/frame, %d frames/sec\n", 1000.0 / numFrames, numFrames);
-        //     numFrames = 0;
-        //     lastTime += 1.0;
-        // }
+        printFPS(&numFrames, &lastTime, currentTime);
+      
+
 
         if (userData->keyStates.keyWPressed)
         {
@@ -201,7 +196,7 @@ int main()
         if (userData->keyStates.key2Pressed)
             updateAllInstanceTransformations(instanceData, instanceCount, 0.98); // Update all instances
 
-        applyFriction(&transform, 0.95f);
+        applyFriction(&transform, 0.3f);
 
         vec3 translation = {transform.translateX, transform.translateY, 0.0f}; // Only translate in X and Y
 
